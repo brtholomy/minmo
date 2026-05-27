@@ -68,10 +68,10 @@ filesystem FSTYPE, 'git or 'disk."
 
 (defun minmo--fetch-vc-branch (file)
   "Get the branch from vc state cache if available, otherwise call git."
-  (concat " :" (or (vc-git--symbolic-ref file)
-                   ;; first 7 of commit hash:
-                   (substring (vc-git-working-revision file) 0 7)
-                   "?")))
+  (concat ":" (or (vc-git--symbolic-ref file)
+                  ;; first 7 of commit hash:
+                  (substring (vc-git-working-revision file) 0 7)
+                  "?")))
 
 (defun minmo-branch () minmo--vc-branch-cache)
 
