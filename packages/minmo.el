@@ -304,18 +304,21 @@ Updates only on file load and save to guarantee zero redisplay lag.")
   '(:eval (minmo-buffer-name))
 
   ;;;;;;;;;;;;;
-  ;; major-mode
-  '(:eval (minmo-major-mode))
+  ;; status
+  '(:eval (minmo-vc-status))
+  '(:eval (minmo-disk-status))
 
   ;;;;;;;;;;;;;
   ;; project
   '(:eval (minmo-project))
 
   ;;;;;;;;;;;;;
-  ;; status
+  ;; branch
   '(:eval (minmo-branch))
-  '(:eval (minmo-vc-status))
-  '(:eval (minmo-disk-status))
+
+  ;;;;;;;;;;;;;
+  ;; major-mode
+  '(:eval (minmo-major-mode))
 
   ;;;;;;;;;;;;;
   ;; everything after will be right-aligned:
