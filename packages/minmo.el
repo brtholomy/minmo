@@ -1,0 +1,327 @@
+;; minmo.el -*- lexical-binding: t; -*-
+
+;; my mode line is extremely minimal. However there are a few things I want:
+;;
+;; buffer-name
+;; major-mode
+;; project-name
+;; git branch
+;; git and disk status
+;; minor-mode very selectively
+;; narrow indicator
+;; line:col
+;; lines
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; git and disk status
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; unified symbol set for git and disk status on tty and pts
+;;                           disk  git
+;; unmodified         : ◻  : grey  grey
+;; --
+;; modified/staged    : ◱  : red   orange
+;; readonly/ignored   : ◳  : green green
+;; --
+;; new                : ◰  :       blue
+;; nofile/untracked   : ◲  : blue  red
+
+;; left nodule for git means: ready for commit
+;; right nodule for git means: unaffected by next commit
+
+(defconst minmo-status-alist
+  '(
+    (unmodified . (((unicode . "◻") (ascii . ".")) . ((disk . nil) (git . nil))))
+    (modified/staged . (((unicode . "◱") (ascii . "*")) . ((disk . error) (git . warning))))
+    (readonly/ignored . (((unicode . "◳") (ascii . "_")) . ((disk . success) (git . success))))
+    (new . (((unicode . "◰") (ascii . "+")) . ((disk . link) (git . link))))
+    (nofile/untracked . (((unicode . "◲") (ascii . "!")) . ((disk . link) (git . error))))
+    )
+  "Unified symbol set for git and disk status with unicode and ascii variants
+  and their respective faces.")
+
+(defun minmo--status-string-face (status fstype)
+  (let* (
+         (encoding (if (tty-emulator-p) 'unicode 'ascii))
+         (row (cdr (assoc status minmo-status-alist)))
+         (str (cdr (assoc encoding (car row))))
+         (face (cdr (assoc fstype (cdr row))))
+         )
+    (cons str face)))
+
+(defun minmo--status (status fstype)
+  "returns a propertized string with the associated face, given the STATUS and
+filesystem FSTYPE, 'git or 'disk."
+  (let ((pair (minmo--status-string-face status fstype)))
+    (propertize (car pair) 'face (cdr pair))
+    ))
+
+(defun minmo--file-exists-locally-p ()
+  "Utility predicate to prevent expensive VC checks remotely."
+  (and buffer-file-name (not (file-remote-p (buffer-file-name)))))
+
+(defun minmo-vc-git-branch (file)
+  (or (vc-git--symbolic-ref file)
+      ;; first 7 of commit hash:
+      (substring (vc-git-working-revision file) 0 7)
+      "?"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; tracked files
+;;
+;; along with auto-revert-check-vc-info and global-auto-revert-mode,
+;; vc-mode works well. but, still too noisy without modification.
+;; here i'm just overriding using the vc-state cache.
+(defun minmo-vc-git-mode-line-string (file)
+  "Replace the default `vc-git-mode-line-string' builder.
+Uses the fast `vc-state' cache rather than synchronous git calls."
+  (let* ((state  (vc-state file))
+         (branch (minmo-vc-git-branch file)))
+
+    (pcase state
+      ;; NOTE: vc-mode adds its own space prefix to vc-git-mode-line-string:
+      ('up-to-date  (concat ":" branch " " (minmo--status 'unmodified 'git)))
+      ('edited      (concat ":" branch " " (minmo--status 'modified/staged 'git)))
+      ('added       (concat ":" branch " " (minmo--status 'new 'git)))
+      ('needs-merge (concat ":" branch " " (minmo--status 'modified/staged 'git)))
+      ('conflict    (concat ":" branch " " (minmo--status 'modified/staged 'git)))
+      (_            (concat ":" branch " " (minmo--status 'unmodified 'git)))
+      )))
+;; NOTE: :override replaces the function
+(advice-add #'vc-git-mode-line-string :override #'minmo-vc-git-mode-line-string)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; untracked files
+;;
+;; this relies on calling git manually, and not the vc-state cache.
+;; however, we cache the state ourselves here in this variable, and only change
+;; it when the hooks fire.
+(defvar-local minmo-vc-untracked-string nil
+  "Cached mode-line string for untracked/ignored git files.")
+
+(defun minmo-vc-untracked-status ()
+  "Uses built-in vc to check if a file is untracked or ignored without blocking redisplay."
+  ;; NOTE: this will run for remote files, which is still desirable, since
+  ;; this will rely on normal vc-mode checks. the (minmo--file-exists-locally-p)
+  ;; checks below are to prevent my hacks from running out of control when
+  ;; remote or sudo.
+  (when (and buffer-file-name
+             (not vc-mode)
+             (minmo--file-exists-locally-p)
+             (eq (vc-responsible-backend buffer-file-name t) 'Git))
+
+    ;; vc-git-state directly queries git
+    (let ((state (vc-git-state buffer-file-name))
+          (branch (minmo-vc-git-branch buffer-file-name)))
+      (setq minmo-vc-untracked-string
+            (pcase state
+              ;; NOTE: we need the space prefix to match the output of vc-mode:
+              ('unregistered (concat " :" branch " " (minmo--status 'nofile/untracked 'git)))
+              ('ignored      (concat " :" branch " " (minmo--status 'readonly/ignored 'git)))
+              (_ nil))))))
+
+;; NOTE: update the state when the file state changes
+;; this is the only remaining part of this approach which is somewhat hacky, in
+;; that vc-mode otherwise handles the refresh. but these are infrequent actions:
+(add-hook 'find-file-hook #'minmo-vc-untracked-status)
+(add-hook 'after-save-hook #'minmo-vc-untracked-status)
+(add-hook 'after-revert-hook #'minmo-vc-untracked-status)
+
+;;;;;;;;;;;;;;;;
+;; unified interface
+(defun minmo-vc-status ()
+  (or
+   vc-mode
+   minmo-vc-untracked-string
+   ;; NOTE: need this space for files outside of VC:
+   " "
+   ))
+
+(defun minmo-disk-status ()
+  (cond
+   ((and buffer-file-name (buffer-modified-p))
+    (minmo--status 'modified/staged 'disk))
+   ;; for buffers with no file, like *scratch*:
+   ((and (not buffer-file-name) (buffer-modified-p))
+    (minmo--status 'nofile/untracked 'disk))
+   (buffer-read-only
+    (minmo--status 'readonly/ignored 'disk))
+   (t (minmo--status 'unmodified 'disk))
+   ))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; major-mode
+
+;; current solution is to throw out a few redundant, obvious modes.
+;; NOTE: using major-mode directly, rather than mode-name, because
+;; the "pretty print" format is annoying.
+(defun minmo-major-mode ()
+  (unless (member major-mode '(
+                               um-mode
+                               markdown-mode
+                               emacs-lisp-mode
+                               ))
+    ;; major-mode is first evaluated, then the symbol-name of
+    ;; the return value is fetched as string:
+    (concat " " (symbol-name major-mode))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; project
+
+;; project-current has caching, but this extends it further: get the
+;; project-name once when the file is opened.
+;; running up directories looking for .git can be bad.
+(defvar-local minmo-mode-line-project nil)
+
+(defun minmo-cache-project ()
+  "Cache the project name to prevent disk I/O during redisplay."
+  (setq minmo-mode-line-project
+        ;; don't show project for help buffers, remote files, etc:
+        (when-let* (((minmo--file-exists-locally-p))
+                    ;; NOTE: taken from project-mode-line-format
+                    (last-coding-system-used last-coding-system-used)
+                    ;; NOTE: project-current calls project--get-cached, which uses
+                    ;; project-vc-non-essential-cache-timeout when non-essential is t
+                    (non-essential t)
+                    (project (project-current)))
+          (concat " " (project-name project)))
+        ))
+
+(add-hook 'find-file-hook #'minmo-cache-project)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; input-method
+
+(defun minmo-input-method ()
+  (when current-input-method-title
+    (concat (propertize current-input-method-title 'face 'warning) " | ")
+    ))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; line column
+
+;; line count can be expensive for large files, when run continuously. cache it.
+(defvar-local minmo--total-lines nil
+  "Cached total line count for the current buffer.
+Updates only on file load and save to guarantee zero redisplay lag.")
+
+(defun minmo-update-total-lines ()
+  "Refresh the total line count cache."
+  ;; 'line-number-at-pos' is C-level:
+  (setq minmo--total-lines (line-number-at-pos (point-max))))
+
+(add-hook 'find-file-hook #'minmo-update-total-lines)
+(add-hook 'after-save-hook #'minmo-update-total-lines)
+(add-hook 'after-revert-hook #'minmo-update-total-lines)
+
+;; because when narrow is on line count is meaningless:
+(defun minmo-narrow-or-linecol-total ()
+  (when buffer-file-name
+    (if (buffer-narrowed-p)
+        (propertize "%n" 'face 'warning)
+      ;; consult preview won't have filled out minmo--total-lines:
+      (when minmo--total-lines
+        (concat "%l:%c " (number-to-string minmo--total-lines)))
+      )))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; minor-modes
+
+;; NOTE: customization via mode-line-minor-modes and
+;; mode-line-collapse-minor-modes is almost right, but the strings still come
+;; from minor-mode-alist, which I don't care for.
+;; And rather than define what not to eliminate, I only define what I want and
+;; check for t.
+(defvar minmo-minor-modes-to-show
+  '(
+    view-mode
+    outline-minor-mode
+    olivetti-mode
+    eglot--managed-mode
+    )
+  "minor modes to show in the mode-line")
+
+(defvar minmo-minor-modes-face 'font-lock-keyword-face)
+
+(defun minmo-minor-modes ()
+  (string-join
+   (delq nil (mapcar (lambda (m)
+                       ;; NOTE: bound-and-true-p does not work here, because
+                       ;; it's a macro which doesn't evaluate its arguments,
+                       ;; whereas boundp and symbol-value are functions which resolve
+                       ;; the local m var first:
+                       (when (and (boundp m) (symbol-value m))
+                         ;; don't use the :lighter from minor-mode-alist, just strip the end:
+                         (propertize (string-trim-right (symbol-name m) "-minor-mode\\|-mode\\|--managed-mode")
+                                     'face minmo-minor-modes-face)))
+                     minmo-minor-modes-to-show))
+   " "))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; truncate
+
+(defun minmo-truncate ()
+  "Truncate the `mode-line-format' starting from the
+`mode-line-format-right-align' for this buffer."
+  (setq-local
+   mode-line-format
+   (butlast mode-line-format (length (memq 'mode-line-format-right-align mode-line-format)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; mode-line-format
+
+;; http://emacs-fu.blogspot.com/2011/08/customizing-mode-line.html
+(setq-default
+ mode-line-format
+ (list
+
+  ;;;;;;;;;;;;;
+  ;; (buffer-name)
+  '(:eval (propertize "%b" 'face 'font-lock-string-face))
+
+  ;;;;;;;;;;;;;
+  ;; major-mode
+  '(:eval (minmo-major-mode))
+
+  ;;;;;;;;;;;;;
+  ;; project
+  '(:eval minmo-mode-line-project)
+
+  ;;;;;;;;;;;;;
+  ;; status
+  '(:eval (minmo-vc-status))
+  '(:eval (minmo-disk-status))
+
+  ;;;;;;;;;;;;;
+  ;; everything after will be right-aligned:
+  'mode-line-format-right-align
+
+  ;;;;;;;;;;;;;
+  ;; minor modes
+  '(:eval (minmo-minor-modes)) " "
+
+  ;;;;;;;;;;;;;
+  ;; keycast
+  ;; I use this dummy symbol because my modeline doesn't have the expected symbol.
+  ;; `keycast' inserts itself after this point:
+  'keycast-mode-line-identifier
+
+  ;;;;;;;;;;;;;
+  ;; input-method
+  '(:eval (minmo-input-method))
+
+  ;;;;;;;;;;;;;
+  ;; narrowing notifier or line:col total
+  '(:eval (minmo-narrow-or-linecol-total))
+
+  ;; when the window is split, the line seems to eat the rightmost edge:
+  " "
+  ))
+
+(provide 'minmo)
+
+;; Local Variables:
+;; outline-regexp: ";;;+ [^;]+"
+;; eval: (outline-minor-mode 1)
+;; End:
