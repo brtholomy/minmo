@@ -60,7 +60,7 @@ filesystem FSTYPE, 'git or 'disk."
   "Utility predicate to prevent expensive VC checks remotely."
   (and buffer-file-name (not (file-remote-p (buffer-file-name)))))
 
-(defun minmo-vc-git-branch (file)
+(defun minmo-branch (file)
   (or (vc-git--symbolic-ref file)
       ;; first 7 of commit hash:
       (substring (vc-git-working-revision file) 0 7)
@@ -72,11 +72,11 @@ filesystem FSTYPE, 'git or 'disk."
 ;; along with auto-revert-check-vc-info and global-auto-revert-mode,
 ;; vc-mode works well. but, still too noisy without modification.
 ;; here i'm just overriding using the vc-state cache.
-(defun minmo-vc-git-mode-line-string (file)
+(defun minmo-vc-tracked-status (file)
   "Replace the default `vc-git-mode-line-string' builder.
 Uses the fast `vc-state' cache rather than synchronous git calls."
   (let* ((state  (vc-state file))
-         (branch (minmo-vc-git-branch file)))
+         (branch (minmo-branch file)))
 
     (pcase state
       ;; NOTE: vc-mode adds its own space prefix to vc-git-mode-line-string:
@@ -88,7 +88,7 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
       (_            (concat ":" branch " " (minmo--status 'unmodified 'git)))
       )))
 ;; NOTE: :override replaces the function
-(advice-add #'vc-git-mode-line-string :override #'minmo-vc-git-mode-line-string)
+(advice-add #'vc-git-mode-line-string :override #'minmo-vc-tracked-status)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; untracked files
@@ -96,7 +96,7 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
 ;; this relies on calling git manually, and not the vc-state cache.
 ;; however, we cache the state ourselves here in this variable, and only change
 ;; it when the hooks fire.
-(defvar-local minmo-vc-untracked-string nil
+(defvar-local minmo--vc-untracked-cache nil
   "Cached mode-line string for untracked/ignored git files.")
 
 (defun minmo-vc-untracked-status ()
@@ -112,8 +112,8 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
 
     ;; vc-git-state directly queries git
     (let ((state (vc-git-state buffer-file-name))
-          (branch (minmo-vc-git-branch buffer-file-name)))
-      (setq minmo-vc-untracked-string
+          (branch (minmo-branch buffer-file-name)))
+      (setq minmo--vc-untracked-cache
             (pcase state
               ;; NOTE: we need the space prefix to match the output of vc-mode:
               ('unregistered (concat " :" branch " " (minmo--status 'nofile/untracked 'git)))
@@ -132,7 +132,7 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
 (defun minmo-vc-status ()
   (or
    vc-mode
-   minmo-vc-untracked-string
+   minmo--vc-untracked-cache
    ;; NOTE: need this space for files outside of VC:
    " "
    ))
@@ -171,11 +171,11 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
 ;; project-current has caching, but this extends it further: get the
 ;; project-name once when the file is opened.
 ;; running up directories looking for .git can be bad.
-(defvar-local minmo-mode-line-project nil)
+(defvar-local minmo--project-cache nil)
 
-(defun minmo-cache-project ()
+(defun minmo--cache-project ()
   "Cache the project name to prevent disk I/O during redisplay."
-  (setq minmo-mode-line-project
+  (setq minmo--project-cache
         ;; don't show project for help buffers, remote files, etc:
         (when-let* (((minmo--file-exists-locally-p))
                     ;; NOTE: taken from project-mode-line-format
@@ -187,7 +187,7 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
           (concat " " (project-name project)))
         ))
 
-(add-hook 'find-file-hook #'minmo-cache-project)
+(add-hook 'find-file-hook #'minmo--cache-project)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; input-method
@@ -201,27 +201,27 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
 ;;; line column
 
 ;; line count can be expensive for large files, when run continuously. cache it.
-(defvar-local minmo--total-lines nil
+(defvar-local minmo--total-lines-cache nil
   "Cached total line count for the current buffer.
 Updates only on file load and save to guarantee zero redisplay lag.")
 
-(defun minmo-update-total-lines ()
+(defun minmo--cache-total-lines ()
   "Refresh the total line count cache."
   ;; 'line-number-at-pos' is C-level:
-  (setq minmo--total-lines (line-number-at-pos (point-max))))
+  (setq minmo--total-lines-cache (line-number-at-pos (point-max))))
 
-(add-hook 'find-file-hook #'minmo-update-total-lines)
-(add-hook 'after-save-hook #'minmo-update-total-lines)
-(add-hook 'after-revert-hook #'minmo-update-total-lines)
+(add-hook 'find-file-hook #'minmo--cache-total-lines)
+(add-hook 'after-save-hook #'minmo--cache-total-lines)
+(add-hook 'after-revert-hook #'minmo--cache-total-lines)
 
 ;; because when narrow is on line count is meaningless:
 (defun minmo-narrow-or-linecol-total ()
   (when buffer-file-name
     (if (buffer-narrowed-p)
         (propertize "%n" 'face 'warning)
-      ;; consult preview won't have filled out minmo--total-lines:
-      (when minmo--total-lines
-        (concat "%l:%c " (number-to-string minmo--total-lines)))
+      ;; consult preview won't have filled out minmo--total-lines-cache:
+      (when minmo--total-lines-cache
+        (concat "%l:%c " (number-to-string minmo--total-lines-cache)))
       )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -286,7 +286,7 @@ Updates only on file load and save to guarantee zero redisplay lag.")
 
   ;;;;;;;;;;;;;
   ;; project
-  '(:eval minmo-mode-line-project)
+  '(:eval minmo--project-cache)
 
   ;;;;;;;;;;;;;
   ;; status
