@@ -150,6 +150,12 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
    ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; buffer-name
+
+(defun minmo-buffer-name ()
+  (propertize (buffer-name) 'face 'font-lock-string-face))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; major-mode
 
 ;; current solution is to throw out a few redundant, obvious modes.
@@ -186,6 +192,8 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
                     (project (project-current)))
           (concat " " (project-name project)))
         ))
+
+(defun minmo-project () minmo--project-cache)
 
 (add-hook 'find-file-hook #'minmo--cache-project)
 
@@ -244,19 +252,18 @@ Updates only on file load and save to guarantee zero redisplay lag.")
 (defvar minmo-minor-modes-face 'font-lock-keyword-face)
 
 (defun minmo-minor-modes ()
-  (string-join
-   (delq nil (mapcar (lambda (m)
-                       ;; NOTE: bound-and-true-p does not work here, because
-                       ;; it's a macro which doesn't evaluate its arguments,
-                       ;; whereas boundp and symbol-value are functions which resolve
-                       ;; the local m var first:
-                       (when (and (boundp m) (symbol-value m))
-                         ;; don't use the :lighter from minor-mode-alist, just strip the end:
-                         (propertize (string-trim-right (symbol-name m) "-minor-mode\\|-mode\\|--managed-mode")
-                                     'face minmo-minor-modes-face)))
-                     minmo-minor-modes-to-show))
-   " "))
-
+  (concat (string-join
+           (delq nil (mapcar (lambda (m)
+                               ;; NOTE: bound-and-true-p does not work here, because
+                               ;; it's a macro which doesn't evaluate its arguments,
+                               ;; whereas boundp and symbol-value are functions which resolve
+                               ;; the local m var first:
+                               (when (and (boundp m) (symbol-value m))
+                                 ;; don't use the :lighter from minor-mode-alist, just strip the end:
+                                 (propertize (string-trim-right (symbol-name m) "-minor-mode\\|-mode\\|--managed-mode")
+                                             'face minmo-minor-modes-face)))
+                             minmo-minor-modes-to-show))
+           " ") " "))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; truncate
@@ -278,7 +285,7 @@ Updates only on file load and save to guarantee zero redisplay lag.")
 
   ;;;;;;;;;;;;;
   ;; (buffer-name)
-  '(:eval (propertize "%b" 'face 'font-lock-string-face))
+  '(:eval (minmo-buffer-name))
 
   ;;;;;;;;;;;;;
   ;; major-mode
@@ -286,7 +293,7 @@ Updates only on file load and save to guarantee zero redisplay lag.")
 
   ;;;;;;;;;;;;;
   ;; project
-  '(:eval minmo--project-cache)
+  '(:eval (minmo-project))
 
   ;;;;;;;;;;;;;
   ;; status
@@ -299,7 +306,7 @@ Updates only on file load and save to guarantee zero redisplay lag.")
 
   ;;;;;;;;;;;;;
   ;; minor modes
-  '(:eval (minmo-minor-modes)) " "
+  '(:eval (minmo-minor-modes))
 
   ;;;;;;;;;;;;;
   ;; keycast
