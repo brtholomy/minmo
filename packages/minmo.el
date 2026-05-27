@@ -169,7 +169,7 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
 ;;; buffer-name
 
 (defun minmo-buffer-name ()
-  (propertize (buffer-name) 'face 'font-lock-string-face))
+  (propertize (buffer-name) 'face 'success))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; major-mode
