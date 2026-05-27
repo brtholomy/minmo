@@ -60,11 +60,20 @@ filesystem FSTYPE, 'git or 'disk."
   "Utility predicate to prevent expensive VC checks remotely."
   (and buffer-file-name (not (file-remote-p (buffer-file-name)))))
 
-(defun minmo-branch (file)
-  (or (vc-git--symbolic-ref file)
-      ;; first 7 of commit hash:
-      (substring (vc-git-working-revision file) 0 7)
-      "?"))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; branch
+
+(defvar-local minmo--vc-branch-cache nil
+  "Cached mode-line string for git branch.")
+
+(defun minmo--fetch-vc-branch (file)
+  "Get the branch from vc state cache if available, otherwise call git."
+  (concat " :" (or (vc-git--symbolic-ref file)
+                   ;; first 7 of commit hash:
+                   (substring (vc-git-working-revision file) 0 7)
+                   "?")))
+
+(defun minmo-branch () minmo--vc-branch-cache)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; tracked files
@@ -77,18 +86,17 @@ filesystem FSTYPE, 'git or 'disk."
 (defun minmo--vc-tracked-status-override (file)
   "Replace the default `vc-git-mode-line-string' builder.
 Uses the fast `vc-state' cache rather than synchronous git calls."
-  (let* ((state  (vc-state file))
-         (branch (minmo-branch file)))
-
+  (let* ((state  (vc-state file)))
+    (setq minmo--vc-branch-cache (minmo--fetch-vc-branch file))
     (setq minmo--vc-tracked-cache
           (pcase state
             ;; NOTE: vc-mode adds its own space prefix to vc-git-mode-line-string:
-            ('up-to-date  (concat ":" branch " " (minmo--status 'unmodified 'git)))
-            ('edited      (concat ":" branch " " (minmo--status 'modified/staged 'git)))
-            ('added       (concat ":" branch " " (minmo--status 'new 'git)))
-            ('needs-merge (concat ":" branch " " (minmo--status 'modified/staged 'git)))
-            ('conflict    (concat ":" branch " " (minmo--status 'modified/staged 'git)))
-            (_            (concat ":" branch " " (minmo--status 'unmodified 'git)))
+            ('up-to-date  (minmo--status 'unmodified 'git))
+            ('edited      (minmo--status 'modified/staged 'git))
+            ('added       (minmo--status 'new 'git))
+            ('needs-merge (minmo--status 'modified/staged 'git))
+            ('conflict    (minmo--status 'modified/staged 'git))
+            (_            (minmo--status 'unmodified 'git))
             ))))
 
 ;; NOTE: :override replaces the function
@@ -118,7 +126,7 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
 
     ;; vc-git-state directly queries git
     (let ((state (vc-git-state buffer-file-name))
-          (branch (minmo-branch buffer-file-name)))
+          (branch (minmo--fetch-vc-branch buffer-file-name)))
       (setq minmo--vc-untracked-cache
             (pcase state
               ;; NOTE: we need the space prefix to match the output of vc-mode:
@@ -305,6 +313,7 @@ Updates only on file load and save to guarantee zero redisplay lag.")
 
   ;;;;;;;;;;;;;
   ;; status
+  '(:eval (minmo-branch))
   '(:eval (minmo-vc-status))
   '(:eval (minmo-disk-status))
 
