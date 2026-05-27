@@ -89,15 +89,15 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
   (let* ((state  (vc-state file)))
     (setq minmo--vc-branch-cache (minmo--fetch-vc-branch file))
     (setq minmo--vc-tracked-cache
-          (pcase state
-            ;; NOTE: vc-mode adds its own space prefix to vc-git-mode-line-string:
-            ('up-to-date  (minmo--status 'unmodified 'git))
-            ('edited      (minmo--status 'modified/staged 'git))
-            ('added       (minmo--status 'new 'git))
-            ('needs-merge (minmo--status 'modified/staged 'git))
-            ('conflict    (minmo--status 'modified/staged 'git))
-            (_            (minmo--status 'unmodified 'git))
-            ))))
+          (concat " " (pcase state
+                        ;; NOTE: vc-mode adds its own space prefix to vc-git-mode-line-string:
+                        ('up-to-date  (minmo--status 'unmodified 'git))
+                        ('edited      (minmo--status 'modified/staged 'git))
+                        ('added       (minmo--status 'new 'git))
+                        ('needs-merge (minmo--status 'modified/staged 'git))
+                        ('conflict    (minmo--status 'modified/staged 'git))
+                        (_            (minmo--status 'unmodified 'git))
+                        )))))
 
 ;; NOTE: :override replaces the function
 (advice-add #'vc-git-mode-line-string :override #'minmo--vc-tracked-status-override)
@@ -128,11 +128,11 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
     (let ((state (vc-git-state buffer-file-name)))
       (setq minmo--vc-branch-cache (minmo--fetch-vc-branch buffer-file-name))
       (setq minmo--vc-untracked-cache
-            (pcase state
-              ;; NOTE: we need the space prefix to match the output of vc-mode:
-              ('unregistered (minmo--status 'nofile/untracked 'git))
-              ('ignored      (minmo--status 'readonly/ignored 'git))
-              (_ nil))))))
+            (concat " " (pcase state
+                          ;; NOTE: we need the space prefix to match the output of vc-mode:
+                          ('unregistered (minmo--status 'nofile/untracked 'git))
+                          ('ignored      (minmo--status 'readonly/ignored 'git))
+                          (_ nil)))))))
 
 ;; NOTE: update the state when the file state changes
 ;; this is the only remaining part of this approach which is somewhat hacky, in
