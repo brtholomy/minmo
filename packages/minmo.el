@@ -125,13 +125,13 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
              (eq (vc-responsible-backend buffer-file-name t) 'Git))
 
     ;; vc-git-state directly queries git
-    (let ((state (vc-git-state buffer-file-name))
-          (branch (minmo--fetch-vc-branch buffer-file-name)))
+    (let ((state (vc-git-state buffer-file-name)))
+      (setq minmo--vc-branch-cache (minmo--fetch-vc-branch buffer-file-name))
       (setq minmo--vc-untracked-cache
             (pcase state
               ;; NOTE: we need the space prefix to match the output of vc-mode:
-              ('unregistered (concat " :" branch " " (minmo--status 'nofile/untracked 'git)))
-              ('ignored      (concat " :" branch " " (minmo--status 'readonly/ignored 'git)))
+              ('unregistered (minmo--status 'nofile/untracked 'git))
+              ('ignored      (minmo--status 'readonly/ignored 'git))
               (_ nil))))))
 
 ;; NOTE: update the state when the file state changes
