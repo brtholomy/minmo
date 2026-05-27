@@ -68,38 +68,44 @@ filesystem FSTYPE, 'git or 'disk."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; tracked files
-;;
+
 ;; along with auto-revert-check-vc-info and global-auto-revert-mode,
 ;; vc-mode works well. but, still too noisy without modification.
-;; here i'm just overriding using the vc-state cache.
-(defun minmo-vc-tracked-status (file)
+(defvar-local minmo--vc-tracked-cache nil
+  "Cached mode-line string for tracked git files.")
+
+(defun minmo--vc-tracked-status-override (file)
   "Replace the default `vc-git-mode-line-string' builder.
 Uses the fast `vc-state' cache rather than synchronous git calls."
   (let* ((state  (vc-state file))
          (branch (minmo-branch file)))
 
-    (pcase state
-      ;; NOTE: vc-mode adds its own space prefix to vc-git-mode-line-string:
-      ('up-to-date  (concat ":" branch " " (minmo--status 'unmodified 'git)))
-      ('edited      (concat ":" branch " " (minmo--status 'modified/staged 'git)))
-      ('added       (concat ":" branch " " (minmo--status 'new 'git)))
-      ('needs-merge (concat ":" branch " " (minmo--status 'modified/staged 'git)))
-      ('conflict    (concat ":" branch " " (minmo--status 'modified/staged 'git)))
-      (_            (concat ":" branch " " (minmo--status 'unmodified 'git)))
-      )))
+    (setq minmo--vc-tracked-cache
+          (pcase state
+            ;; NOTE: vc-mode adds its own space prefix to vc-git-mode-line-string:
+            ('up-to-date  (concat ":" branch " " (minmo--status 'unmodified 'git)))
+            ('edited      (concat ":" branch " " (minmo--status 'modified/staged 'git)))
+            ('added       (concat ":" branch " " (minmo--status 'new 'git)))
+            ('needs-merge (concat ":" branch " " (minmo--status 'modified/staged 'git)))
+            ('conflict    (concat ":" branch " " (minmo--status 'modified/staged 'git)))
+            (_            (concat ":" branch " " (minmo--status 'unmodified 'git)))
+            ))))
+
 ;; NOTE: :override replaces the function
-(advice-add #'vc-git-mode-line-string :override #'minmo-vc-tracked-status)
+(advice-add #'vc-git-mode-line-string :override #'minmo--vc-tracked-status-override)
+
+(defun minmo-vc-tracked-status () minmo--vc-tracked-cache)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; untracked files
-;;
+
 ;; this relies on calling git manually, and not the vc-state cache.
 ;; however, we cache the state ourselves here in this variable, and only change
 ;; it when the hooks fire.
 (defvar-local minmo--vc-untracked-cache nil
   "Cached mode-line string for untracked/ignored git files.")
 
-(defun minmo-vc-untracked-status ()
+(defun minmo--cache-vc-untracked ()
   "Uses built-in vc to check if a file is untracked or ignored without blocking redisplay."
   ;; NOTE: this will run for remote files, which is still desirable, since
   ;; this will rely on normal vc-mode checks. the (minmo--file-exists-locally-p)
@@ -123,16 +129,18 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
 ;; NOTE: update the state when the file state changes
 ;; this is the only remaining part of this approach which is somewhat hacky, in
 ;; that vc-mode otherwise handles the refresh. but these are infrequent actions:
-(add-hook 'find-file-hook #'minmo-vc-untracked-status)
-(add-hook 'after-save-hook #'minmo-vc-untracked-status)
-(add-hook 'after-revert-hook #'minmo-vc-untracked-status)
+(add-hook 'find-file-hook #'minmo--cache-vc-untracked)
+(add-hook 'after-save-hook #'minmo--cache-vc-untracked)
+(add-hook 'after-revert-hook #'minmo--cache-vc-untracked)
+
+(defun minmo-vc-untracked-status () minmo--vc-untracked-cache)
 
 ;;;;;;;;;;;;;;;;
 ;; unified interface
 (defun minmo-vc-status ()
   (or
-   vc-mode
-   minmo--vc-untracked-cache
+   (minmo-vc-tracked-status)
+   (minmo-vc-untracked-status)
    ;; NOTE: need this space for files outside of VC:
    " "
    ))
