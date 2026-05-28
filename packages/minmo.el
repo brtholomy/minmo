@@ -87,7 +87,7 @@ filesystem FSTYPE, 'git or 'disk."
 (defun minmo-branch () minmo--vc-branch-cache)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; tracked files
+;;;; tracked
 
 ;; along with auto-revert-check-vc-info and global-auto-revert-mode,
 ;; vc-mode works well. but, still too noisy without modification.
@@ -116,7 +116,7 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
 (defun minmo-vc-tracked-status () minmo--vc-tracked-cache)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; untracked files
+;;;; untracked
 
 ;; this relies on calling git manually, and not the vc-state cache.
 ;; however, we cache the state ourselves here in this variable, and only change
@@ -163,6 +163,9 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
    ;; NOTE: need this space for files outside of VC:
    " "
    ))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; disk
 
 (defun minmo-disk-status ()
   (cond
