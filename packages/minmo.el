@@ -53,7 +53,7 @@
 
 (defun minmo--status-string-face (status fstype)
   (let* (
-         (encoding (if (tty-emulator-p) 'unicode 'ascii))
+         (encoding (if (string-prefix-p "xterm" (tty-type)) 'unicode 'ascii))
          (row (cdr (assoc status minmo-status-alist)))
          (str (cdr (assoc encoding (car row))))
          (face (cdr (assoc fstype (cdr row))))
