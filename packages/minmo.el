@@ -40,6 +40,10 @@
 ;; top                  ◰◳ : new/ignored       : clean
 ;; bottom               ◱◲ : staged/untracked  : dirty
 
+;; NOTE: "clean" is not quite right, since a newly added file, staged, is still
+;; a dirty repo. but vc-state doesn't tell us whether a modified file is staged
+;; or unstaged.
+
 (defconst minmo-status-alist
   '(
     (unmodified . (((unicode . "◻") (ascii . ".")) . ((disk . nil) (git . nil))))
@@ -103,6 +107,8 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
           (concat " " (pcase state
                         ;; NOTE: vc-mode adds its own space prefix to vc-git-mode-line-string:
                         ('up-to-date  (minmo--status 'unmodified 'git))
+                        ;; NOTE: vc-state does not distinguish between staged
+                        ;; and unstaged:
                         ('edited      (minmo--status 'modified/staged 'git))
                         ('added       (minmo--status 'new 'git))
                         ('needs-merge (minmo--status 'modified/staged 'git))
