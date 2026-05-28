@@ -1,22 +1,31 @@
-;; minmo.el -*- lexical-binding: t; -*-
+;; minmo.el --- minimal mode-line -*- lexical-binding: t; -*-
 
 ;; my mode line is extremely minimal. However there are a few things I want:
 ;;
 ;; buffer-name
-;; major-mode
+;; git and disk status
 ;; project-name
 ;; git branch
-;; git and disk status
+;; major-mode
 ;; minor-mode very selectively
 ;; narrow indicator
 ;; line:col
 ;; lines
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; buffer-name
+
+(defun minmo-buffer-name ()
+  (if (mode-line-window-selected-p)
+      (propertize (buffer-name) 'face 'success)
+    (buffer-name)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; git and disk status
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; unified symbol set for git and disk status on tty and pts
+;;
 ;;                           disk  git
 ;; unmodified         : ◻  : grey  grey
 ;; --
@@ -26,8 +35,10 @@
 ;; new                : ◰  :       blue
 ;; nofile/untracked   : ◲  : blue  red
 
-;; left nodule for git means: ready for commit
-;; right nodule for git means: unaffected by next commit
+;; left                 ◱◰ : staged/new        : indexed
+;; right                ◳◲ : ignored/untracked : unindexed
+;; top                  ◰◳ : new/ignored       : clean
+;; bottom               ◱◲ : staged/untracked  : dirty
 
 (defconst minmo-status-alist
   '(
@@ -166,30 +177,6 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
    ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; buffer-name
-
-(defun minmo-buffer-name ()
-  (if (mode-line-window-selected-p)
-      (propertize (buffer-name) 'face 'success)
-    (buffer-name)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; major-mode
-
-;; current solution is to throw out a few redundant, obvious modes.
-;; NOTE: using major-mode directly, rather than mode-name, because
-;; the "pretty print" format is annoying.
-(defun minmo-major-mode ()
-  (unless (member major-mode '(
-                               um-mode
-                               markdown-mode
-                               emacs-lisp-mode
-                               ))
-    ;; major-mode is first evaluated, then the symbol-name of
-    ;; the return value is fetched as string:
-    (concat " " (symbol-name major-mode))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; project
 
 ;; project-current has caching, but this extends it further: get the
@@ -214,6 +201,22 @@ Uses the fast `vc-state' cache rather than synchronous git calls."
 (defun minmo-project () minmo--project-cache)
 
 (add-hook 'find-file-hook #'minmo--cache-project)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; major-mode
+
+;; current solution is to throw out a few redundant, obvious modes.
+;; NOTE: using major-mode directly, rather than mode-name, because
+;; the "pretty print" format is annoying.
+(defun minmo-major-mode ()
+  (unless (member major-mode '(
+                               um-mode
+                               markdown-mode
+                               emacs-lisp-mode
+                               ))
+    ;; major-mode is first evaluated, then the symbol-name of
+    ;; the return value is fetched as string:
+    (concat " " (symbol-name major-mode))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; input-method
