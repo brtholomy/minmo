@@ -91,84 +91,86 @@ filesystem FSTYPE, 'git or 'disk."
 (defun minmo-branch () minmo--vc-branch-cache)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; tracked
+;;;; status
 
-;; along with auto-revert-check-vc-info and global-auto-revert-mode,
-;; vc-mode works well. but, still too noisy without modification.
-(defvar-local minmo--vc-tracked-cache nil
-  "Cached mode-line string for tracked git files.")
+(defvar-local minmo--vc-status-cache nil
+  "Cached mode-line string for git file status.")
 
-(defun minmo--vc-tracked-status-override (file)
-  "Replace the default `vc-git-mode-line-string' builder.
-Uses the fast `vc-state' cache rather than synchronous git calls."
-  (let* ((state  (vc-state file)))
-    (setq minmo--vc-branch-cache (minmo--fetch-vc-branch file))
-    (setq minmo--vc-tracked-cache
-          (concat " " (pcase state
-                        ;; NOTE: vc-mode adds its own space prefix to vc-git-mode-line-string:
-                        ('up-to-date  (minmo--status 'unmodified 'git))
-                        ;; NOTE: vc-state does not distinguish between staged
-                        ;; and unstaged:
-                        ('edited      (minmo--status 'modified/staged 'git))
-                        ('added       (minmo--status 'new 'git))
-                        ('needs-merge (minmo--status 'modified/staged 'git))
-                        ('conflict    (minmo--status 'modified/staged 'git))
-                        (_            (minmo--status 'unmodified 'git))
-                        )))))
+(defun minmo-vc-status ()
+  (or minmo--vc-status-cache " "))
 
-;; NOTE: :override replaces the function
-(advice-add #'vc-git-mode-line-string :override #'minmo--vc-tracked-status-override)
-
-(defun minmo-vc-tracked-status () minmo--vc-tracked-cache)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; untracked
-
-;; this relies on calling git manually, and not the vc-state cache.
-;; however, we cache the state ourselves here in this variable, and only change
-;; it when the hooks fire.
-(defvar-local minmo--vc-untracked-cache nil
-  "Cached mode-line string for untracked/ignored git files.")
-
-(defun minmo--cache-vc-untracked ()
-  "Uses built-in vc to check if a file is untracked or ignored without blocking redisplay."
-  ;; NOTE: this will run for remote files, which is still desirable, since
-  ;; this will rely on normal vc-mode checks. the (minmo--file-exists-locally-p)
-  ;; checks below are to prevent my hacks from running out of control when
-  ;; remote or sudo.
-  (when (and buffer-file-name
-             (not vc-mode)
-             (minmo--file-exists-locally-p)
+(defun minmo--update-vc-cache ()
+  "Call git and cache the mode-line string."
+  (when (and (minmo--file-exists-locally-p)
+             ;; NOTE: this is cached via vc-backend and vc-file-prop-obarray,
+             ;; so it's safe as a guardrail:
              (eq (vc-responsible-backend buffer-file-name t) 'Git))
 
-    ;; vc-git-state directly queries git
-    (let ((state (vc-git-state buffer-file-name)))
-      (setq minmo--vc-branch-cache (minmo--fetch-vc-branch buffer-file-name))
-      (setq minmo--vc-untracked-cache
-            (concat " " (pcase state
-                          ;; NOTE: we need the space prefix to match the output of vc-mode:
+    ;; NOTE: this is cached via vc-file-prop-obarray
+    (setq minmo--vc-branch-cache (minmo--fetch-vc-branch buffer-file-name))
+    ;; NOTE: this is not cached and will run git:
+    (let ((status (vc-git-state buffer-file-name)))
+      (setq minmo--vc-status-cache
+            (concat " " (pcase status
+                          ('up-to-date   (minmo--status 'unmodified 'git))
+                          ('edited       (minmo--status 'modified/staged 'git))
+                          ('added        (minmo--status 'new 'git))
+                          ('needs-merge  (minmo--status 'modified/staged 'git))
+                          ('conflict     (minmo--status 'modified/staged 'git))
                           ('unregistered (minmo--status 'nofile/untracked 'git))
                           ('ignored      (minmo--status 'readonly/ignored 'git))
-                          (_ nil)))))))
+                          (_             (minmo--status 'unmodified 'git))))))))
 
-;; NOTE: update the state when the file state changes
-;; this is the only remaining part of this approach which is somewhat hacky, in
-;; that vc-mode otherwise handles the refresh. but these are infrequent actions:
-(add-hook 'find-file-hook #'minmo--cache-vc-untracked)
-(add-hook 'after-save-hook #'minmo--cache-vc-untracked)
-(add-hook 'after-revert-hook #'minmo--cache-vc-untracked)
+;; NOTE: update the cache with file changes
+(add-hook 'find-file-hook #'minmo--update-vc-cache)
+(add-hook 'after-save-hook #'minmo--update-vc-cache)
+(add-hook 'after-revert-hook #'minmo--update-vc-cache)
 
-(defun minmo-vc-untracked-status () minmo--vc-untracked-cache)
+;; and when window state changes:
+(defun minmo--update-vc-cache-window-status (frame-or-window)
+  (let ((win (if (framep frame-or-window)
+                 (frame-selected-window frame-or-window)
+               frame-or-window)))
+    (with-current-buffer (window-buffer win)
+      (minmo--update-vc-cache))))
 
-;;;;;;;;;;;;;;;;
-;; unified interface
-(defun minmo-vc-status ()
-  (or
-   (minmo-vc-tracked-status)
-   (minmo-vc-untracked-status)
-   ;; NOTE: need this space for files outside of VC:
-   " "
-   ))
+;; NOTE: window-state-change-functions includes size changes, which would be spammy.
+;; this does selection changes, eg other-window:
+(add-hook 'window-selection-change-functions #'minmo--update-vc-cache-window-status)
+;; this does buffer changes, eg switch-to-buffer:
+(add-hook 'window-buffer-change-functions #'minmo--update-vc-cache-window-status)
+
+;; this is set by vc-hooks.el, which is loaded with `vc'
+;; we still want this, because vc-responsible-backend and vc-git--symbolic-ref
+;; use the cache set by this function:
+;; (remove-hook 'find-file-hook #'vc-refresh-state)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; timer
+
+;; NOTE: the idea here is to keep the timer like vc-mode uses when
+;; auto-revert-check-vc-info is t, but restrict to visible windows. Which is
+;; somewhat an obvious optimization.
+
+(defcustom minmo-vc-cache-timer-interval 5
+  "interval for `minmo-vc-cache-timer'")
+
+(defvar minmo-vc-cache-timer nil)
+
+(defun minmo--vc-update-cache-visible ()
+  "Update vc cache for visible windows."
+  (dolist (win (window-list))
+    (with-current-buffer (window-buffer win)
+      (minmo--update-vc-cache))))
+
+;; guard against spawning multiple when this file is eval'd :
+(when minmo-vc-cache-timer (cancel-timer minmo-vc-cache-timer))
+(setq minmo-vc-cache-timer
+      ;; TODO: run-with-idle-timer ?
+      (run-with-timer
+       minmo-vc-cache-timer-interval
+       minmo-vc-cache-timer-interval
+       'minmo--vc-update-cache-visible))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; disk
