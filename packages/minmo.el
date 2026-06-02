@@ -108,8 +108,10 @@ filesystem FSTYPE, 'git or 'disk."
 
     ;; NOTE: this is cached via vc-file-prop-obarray
     (setq minmo--vc-branch-cache (minmo--fetch-vc-branch buffer-file-name))
+
     ;; NOTE: this is not cached and will run git:
-    (let ((status (vc-git-state buffer-file-name)))
+    (let ((status (vc-git-state buffer-file-name))
+          (old minmo--vc-status-cache))
       (setq minmo--vc-status-cache
             (concat " " (pcase status
                           ('up-to-date   (minmo--status 'unmodified 'git))
@@ -119,7 +121,10 @@ filesystem FSTYPE, 'git or 'disk."
                           ('conflict     (minmo--status 'modified/staged 'git))
                           ('unregistered (minmo--status 'nofile/untracked 'git))
                           ('ignored      (minmo--status 'readonly/ignored 'git))
-                          (_             (minmo--status 'unmodified 'git))))))))
+                          (_             (minmo--status 'unmodified 'git)))))
+      ;; redraw only when it changed:
+      (when (not (string= old minmo--vc-status-cache))
+        (force-mode-line-update)))))
 
 ;; NOTE: update the cache with file changes
 (add-hook 'find-file-hook #'minmo--update-vc-cache)
