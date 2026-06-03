@@ -107,16 +107,15 @@ single space.")
 (defvar minmo--git-directory-table (make-hash-table) "Store known directories
 with .git")
 
-(defun minmo--find-git (file &optional force)
-  "Walk up the directory tree looking for `.git'. Returns root path or nil.
+(defun minmo--under-git-p (file &optional force)
+  "Walk up the directory tree looking for `.git'. Returns t or nil.
 Optional FORCE means ignore the minmo--git-directory-table."
   (let* ((dir (file-name-directory file))
          (hash (gethash dir minmo--git-directory-table)))
     (if (or force (not hash))
-        ;; NOTE: this will store nil for files not under .git, which means the
-        ;; check will always fire. consider storing a symbol here.
-        (puthash dir (locate-dominating-file file ".git") minmo--git-directory-table)
-      hash)))
+        ;; NOTE: store 'ignore for files not under .git
+        (puthash dir (or (locate-dominating-file file ".git") 'ignore) minmo--git-directory-table)
+      (not (eq hash 'ignore)))))
 
 (defun minmo--file-exists-locally-p ()
   "Utility predicate to prevent expensive VC checks remotely."
@@ -152,7 +151,7 @@ Optional FORCE means ignore the minmo--git-directory-table."
   (when (minmo--file-exists-locally-p)
     (let ((old-status minmo--vc-status-cache)
           (old-branch minmo--vc-branch-cache)
-          (git (minmo--find-git buffer-file-name force)))
+          (git (minmo--under-git-p buffer-file-name force)))
 
       (if git
           (progn
@@ -247,12 +246,15 @@ Optional FORCE means ignore the minmo--git-directory-table."
   "Cache the project name to prevent disk I/O during redisplay."
   (setq minmo--project-cache
         ;; don't show project for help buffers, remote files, etc:
-        (when-let* (((minmo--file-exists-locally-p))
+        (when-let* ((_ (minmo--file-exists-locally-p))
                     ;; NOTE: taken from project-mode-line-format
                     (last-coding-system-used last-coding-system-used)
                     ;; NOTE: project-current calls project--get-cached, which uses
                     ;; project-vc-non-essential-cache-timeout when non-essential is t
                     (non-essential t)
+                    ;; TODO: this relies on vc internals. if I'm severing
+                    ;; dependence on vc-mode, consider replacing with a simple
+                    ;; dir lookup done during minmo--under-git-p
                     (project (project-current)))
           (concat " " (project-name project)))
         ))
