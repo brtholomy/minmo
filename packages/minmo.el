@@ -208,9 +208,6 @@ Optional FORCE means ignore the minmo--git-directory-table."
 ;; auto-revert-check-vc-info is t, but restrict to visible windows. Which is
 ;; somewhat an obvious optimization.
 
-(defcustom minmo-git-cache-timer-interval 5
-  "interval for `minmo-git-cache-timer'")
-
 (defvar minmo-git-cache-timer nil)
 
 (defun minmo--update-git-cache-visible ()
@@ -219,14 +216,27 @@ Optional FORCE means ignore the minmo--git-directory-table."
     (with-current-buffer (window-buffer win)
       (minmo--update-git-cache))))
 
-;; guard against spawning multiple when this file is eval'd :
-(when minmo-git-cache-timer (cancel-timer minmo-git-cache-timer))
-(setq minmo-git-cache-timer
-      ;; TODO: run-with-idle-timer ?
-      (run-with-timer
-       minmo-git-cache-timer-interval
-       minmo-git-cache-timer-interval
-       'minmo--update-git-cache-visible))
+(defun minmo--start-timer (symbol value)
+  "Apply the new timer VALUE to SYMBOL and restart the timer."
+  ;; explicitly set the variable, otherwise :set swallows it
+  (set-default symbol value)
+  ;; guard against spawning multiple:
+  (when minmo-git-cache-timer
+    (cancel-timer minmo-git-cache-timer)
+    (setq minmo-git-cache-timer nil))
+  ;; allow disabling:
+  (when (and (numberp value) (> value 0))
+    (setq minmo-git-cache-timer
+          (run-with-timer value value #'minmo--update-git-cache-visible))))
+
+(defcustom minmo-git-cache-timer-interval 5
+  "Interval in seconds for background git caching. Set to nil or 0 to disable."
+  :type '(choice (integer :tag "Seconds")
+                 (const :tag "Disable" nil))
+  :set #'minmo--start-timer)
+
+(minmo--start-timer 'minmo-git-cache-timer-interval
+                    minmo-git-cache-timer-interval)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; disk
