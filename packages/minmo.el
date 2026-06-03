@@ -105,8 +105,7 @@ filesystem FSTYPE, 'git or 'disk."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; status
 
-(defcustom minmo-status-prefix " " "prefix for the status string. usually a
-single space.")
+(defcustom minmo-status-prefix " " "prefix for the git status string.")
 
 (defvar-local minmo--vc-status-cache nil
   "Cached mode-line string for git file status.")
@@ -247,8 +246,7 @@ Optional FORCE means ignore the minmo--git-directory-table."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; project
 
-(defcustom minmo-project-prefix " " "prefix for the project string. usually a
-single space.")
+(defcustom minmo-project-prefix " " "prefix for the project notifier.")
 
 (defvar-local minmo--project-cache nil)
 
@@ -272,8 +270,7 @@ single space.")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; major-mode
 
-(defcustom minmo-major-mode-prefix " " "prefix for the status string. usually a
-single space.")
+(defcustom minmo-major-mode-prefix " " "prefix for the major mode notifier.")
 
 (defcustom minmo-major-modes-to-ignore '(emacs-lisp-mode markdown-mode um-mode)
   "list of major-modes to ignore")
@@ -291,18 +288,24 @@ single space.")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; input-method
 
+(defcustom minmo-input-method-suffix " | "
+  "suffix for the input method notifier.")
+
 (defun minmo-input-method ()
   (when current-input-method-title
-    (concat (propertize current-input-method-title 'face 'warning) " | ")
+    (concat (propertize current-input-method-title 'face 'warning) minmo-input-method-suffix)
     ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; line column
 
+(defcustom minmo-line-column-format "%l:%c" "format for line number and column.")
+
+(defcustom minmo-line-column-suffix " " "suffix for the line number and column.")
+
 ;; line count can be expensive for large files, when run continuously. cache it.
 (defvar-local minmo--total-lines-cache nil
-  "Cached total line count for the current buffer.
-Updates only on file load and save to guarantee zero redisplay lag.")
+  "Cached total line count for the current buffer.")
 
 (defun minmo--cache-total-lines ()
   "Refresh the total line count cache."
@@ -313,14 +316,16 @@ Updates only on file load and save to guarantee zero redisplay lag.")
 (add-hook 'after-save-hook #'minmo--cache-total-lines)
 (add-hook 'after-revert-hook #'minmo--cache-total-lines)
 
-;; because when narrow is on line count is meaningless:
+;; because when narrow is on, line count is meaningless:
 (defun minmo-narrow-or-linecol-total ()
   (when buffer-file-name
     (if (buffer-narrowed-p)
         (propertize "%n" 'face 'warning)
       ;; consult preview won't have filled out minmo--total-lines-cache:
       (when minmo--total-lines-cache
-        (concat "%l:%c " (number-to-string minmo--total-lines-cache)))
+        (concat minmo-line-column-format
+                minmo-line-column-suffix
+                (number-to-string minmo--total-lines-cache)))
       )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -331,16 +336,23 @@ Updates only on file load and save to guarantee zero redisplay lag.")
 ;; from minor-mode-alist, which I don't care for.
 ;; And rather than define what not to eliminate, I only define what I want and
 ;; check for t.
-(defvar minmo-minor-modes-to-show
+(defcustom minmo-minor-modes-to-show
   '(
     view-mode
     outline-minor-mode
     olivetti-mode
     eglot--managed-mode
     )
-  "minor modes to show in the mode-line")
+  "minor modes to show.")
 
-(defvar minmo-minor-modes-face 'font-lock-keyword-face)
+(defcustom minmo-minor-modes-face 'font-lock-keyword-face "face for minor modes.")
+
+(defcustom minmo-minor-modes-separator " " "separator for the minor modes list.")
+
+(defcustom minmo-minor-modes-suffix " " "suffix for the minor modes list.")
+
+(defcustom minmo-minor-modes-strip-suffix-regexp "-minor-mode\\|-mode\\|--managed-mode"
+  "regexp of suffixes from minor modes to strip out.")
 
 (defun minmo-minor-modes ()
   (concat (string-join
@@ -351,10 +363,13 @@ Updates only on file load and save to guarantee zero redisplay lag.")
                                ;; the local m var first:
                                (when (and (boundp m) (symbol-value m))
                                  ;; don't use the :lighter from minor-mode-alist, just strip the end:
-                                 (propertize (string-trim-right (symbol-name m) "-minor-mode\\|-mode\\|--managed-mode")
+                                 (propertize (string-trim-right
+                                              (symbol-name m)
+                                              minmo-minor-modes-strip-suffix-regexp)
                                              'face minmo-minor-modes-face)))
                              minmo-minor-modes-to-show))
-           " ") " "))
+           minmo-minor-modes-separator)
+          minmo-minor-modes-suffix))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; truncate
