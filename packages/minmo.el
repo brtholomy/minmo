@@ -114,8 +114,8 @@ single space.")
 (defun minmo-vc-status ()
   (or minmo--vc-status-cache " "))
 
-(defvar minmo--git-directory-table (make-hash-table) "Store known directories
-with .git")
+(defvar minmo--git-directory-table (make-hash-table :test 'equal)
+  "Store known directories with .git")
 
 (defun minmo--find-git (file &optional force)
   "Walk up the directory tree looking for `.git'. Returns the path or nil.
