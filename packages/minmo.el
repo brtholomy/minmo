@@ -29,27 +29,23 @@
 ;;                           disk  git
 ;; unmodified         : ◻  : grey  grey
 ;; --
-;; modified/staged    : ◱  : red   orange
+;; modified           : ◱  : red   orange
 ;; readonly/ignored   : ◳  : green green
 ;; --
-;; new                : ◰  :       blue
+;; staged             : ◰  :       blue
 ;; nofile/untracked   : ◲  : blue  red
 
-;; left                 ◱◰ : staged/new        : indexed
-;; right                ◳◲ : ignored/untracked : unindexed
-;; top                  ◰◳ : new/ignored       : clean
-;; bottom               ◱◲ : staged/untracked  : dirty
-
-;; NOTE: "clean" is not quite right, since a newly added file, staged, is still
-;; a dirty repo. but vc-state doesn't tell us whether a modified file is staged
-;; or unstaged.
+;; left                 ◱◰ : modified/staged    : indexed
+;; right                ◳◲ : ignored/untracked  : unindexed
+;; top                  ◰◳ : staged/ignored     : ready
+;; bottom               ◱◲ : modified/untracked : dirty
 
 (defconst minmo-status-alist
   '(
     (unmodified . (((unicode . "◻") (ascii . ".")) . ((disk . nil) (git . nil))))
-    (modified/staged . (((unicode . "◱") (ascii . "*")) . ((disk . error) (git . warning))))
+    (modified . (((unicode . "◱") (ascii . "*")) . ((disk . error) (git . warning))))
     (readonly/ignored . (((unicode . "◳") (ascii . "_")) . ((disk . success) (git . success))))
-    (new . (((unicode . "◰") (ascii . "+")) . ((disk . link) (git . link))))
+    (staged . (((unicode . "◰") (ascii . "+")) . ((disk . link) (git . link))))
     (nofile/untracked . (((unicode . "◲") (ascii . "!")) . ((disk . link) (git . error))))
     )
   "Unified symbol set for git and disk status with unicode and ascii variants
@@ -136,13 +132,10 @@ single space.")
             (cond
              ((string= status "  ") (minmo--status 'unmodified 'git))
              ((string= status "!!") (minmo--status 'readonly/ignored 'git))
-             ((string= status "A ") (minmo--status 'new 'git))
              ((string= status "??") (minmo--status 'nofile/untracked 'git))
-             ;; TODO: split modified/staged:
-             ;; staged:
-             ((memq char-index '(?M ?A)) (minmo--status 'modified/staged 'git))
-             ;; modified:
-             ((and (eq char-index ?\s) (eq char-work ?M)) (minmo--status 'modified/staged 'git))
+             ;; report modified whether partially staged or not:
+             ((eq char-work ?M) (minmo--status 'modified 'git))
+             ((memq char-index '(?M ?A)) (minmo--status 'staged 'git))
              (t (minmo--status 'unmodified 'git))))))
 
 (defun minmo--update-vc-cache ()
@@ -221,7 +214,7 @@ single space.")
 (defun minmo-disk-status ()
   (cond
    ((and buffer-file-name (buffer-modified-p))
-    (minmo--status 'modified/staged 'disk))
+    (minmo--status 'modified 'disk))
    ;; for buffers with no file, like *scratch*:
    ((and (not buffer-file-name) (buffer-modified-p))
     (minmo--status 'nofile/untracked 'disk))
