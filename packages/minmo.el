@@ -12,6 +12,16 @@
 ;; line:col
 ;; lines
 
+;; NOTE: this has been cleansed of vc-mode dependencies, despite the fact that
+;; it might seem better practice to use builtin libraries. But `vc' tries much
+;; too hard to be compatible with obsolete version control systems no one uses,
+;; and as a result limits its functionality and performance. We all use git, so
+;; just consolidate.
+;;
+;; Unforunately the `project' code uses the same code under the hood, so this
+;; has also been stripped out in favor of just storing the directory containing
+;; the ".git" folder, which we're checking for anyway.
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; buffer-name
 
@@ -107,15 +117,15 @@ single space.")
 (defvar minmo--git-directory-table (make-hash-table) "Store known directories
 with .git")
 
-(defun minmo--under-git-p (file &optional force)
-  "Walk up the directory tree looking for `.git'. Returns t or nil.
+(defun minmo--find-git (file &optional force)
+  "Walk up the directory tree looking for `.git'. Returns the path or nil.
 Optional FORCE means ignore the minmo--git-directory-table."
   (let* ((dir (file-name-directory file))
          (hash (gethash dir minmo--git-directory-table)))
     (if (or force (not hash))
         ;; NOTE: store 'ignore for files not under .git
         (puthash dir (or (locate-dominating-file file ".git") 'ignore) minmo--git-directory-table)
-      (not (eq hash 'ignore)))))
+      (if (eq hash 'ignore) nil hash))))
 
 (defun minmo--file-exists-locally-p ()
   "Utility predicate to prevent expensive VC checks remotely."
@@ -151,7 +161,7 @@ Optional FORCE means ignore the minmo--git-directory-table."
   (when (minmo--file-exists-locally-p)
     (let ((old-status minmo--vc-status-cache)
           (old-branch minmo--vc-branch-cache)
-          (git (minmo--under-git-p buffer-file-name force)))
+          (git (minmo--find-git buffer-file-name force)))
 
       (if git
           (progn
@@ -237,9 +247,6 @@ Optional FORCE means ignore the minmo--git-directory-table."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; project
 
-;; project-current has caching, but this extends it further: get the
-;; project-name once when the file is opened.
-;; running up directories looking for .git can be bad.
 (defvar-local minmo--project-cache nil)
 
 (defun minmo--cache-project ()
@@ -247,16 +254,11 @@ Optional FORCE means ignore the minmo--git-directory-table."
   (setq minmo--project-cache
         ;; don't show project for help buffers, remote files, etc:
         (when-let* ((_ (minmo--file-exists-locally-p))
-                    ;; NOTE: taken from project-mode-line-format
-                    (last-coding-system-used last-coding-system-used)
-                    ;; NOTE: project-current calls project--get-cached, which uses
-                    ;; project-vc-non-essential-cache-timeout when non-essential is t
-                    (non-essential t)
-                    ;; TODO: this relies on vc internals. if I'm severing
-                    ;; dependence on vc-mode, consider replacing with a simple
-                    ;; dir lookup done during minmo--under-git-p
-                    (project (project-current)))
-          (concat " " (project-name project)))
+                    ;; NOTE: don't rely on project-current anymore, since it
+                    ;; actually uses the same old vc-mode logic I wanted to
+                    ;; avoid.
+                    (git (minmo--find-git buffer-file-name)))
+          (concat " " (file-name-nondirectory (directory-file-name git))))
         ))
 
 (defun minmo-project () minmo--project-cache)
