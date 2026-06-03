@@ -41,7 +41,7 @@
 ;; unmodified       : ◻ : shadow  : shadow
 ;; modified         : ◱ : error   : warning
 ;; readonly/ignored : ◳ : success : success
-;; staged           : ◰ :         : link
+;; staged           : ◰ : warning : link
 ;; nofile/untracked : ◲ : link    : error
 
 ;; quadrant semantics:
@@ -56,7 +56,7 @@
     (unmodified . (((unicode . "◻") (ascii . ".")) . ((disk . nil) (git . nil))))
     (modified . (((unicode . "◱") (ascii . "*")) . ((disk . error) (git . warning))))
     (readonly/ignored . (((unicode . "◳") (ascii . "_")) . ((disk . success) (git . success))))
-    (staged . (((unicode . "◰") (ascii . "+")) . ((disk . link) (git . link))))
+    (staged . (((unicode . "◰") (ascii . "+")) . ((disk . warning) (git . link))))
     (nofile/untracked . (((unicode . "◲") (ascii . "!")) . ((disk . link) (git . error))))
     )
   "Unified symbol set for git and disk status with unicode and ascii variants
@@ -247,13 +247,20 @@ Optional FORCE means ignore the minmo--git-directory-table."
 
 (defun minmo-disk-status ()
   (cond
-   ((and buffer-file-name (buffer-modified-p))
-    (minmo--status 'modified 'disk))
-   ;; for buffers with no file, like *scratch*:
-   ((and (not buffer-file-name) (buffer-modified-p))
-    (minmo--status 'nofile/untracked 'disk))
+   ;; readonly:
    (buffer-read-only
     (minmo--status 'readonly/ignored 'disk))
+   ;; no file but modified:
+   ((and (not buffer-file-name) (buffer-modified-p))
+    (minmo--status 'nofile/untracked 'disk))
+   ;; has a path but was never visited: new unsaved file
+   ;; NOTE: visited-file-modtime involves no disk read:
+   ((and buffer-file-name (eq -1 (visited-file-modtime)))
+    (minmo--status 'staged 'disk))
+   ;; normally modified:
+   ((and buffer-file-name (buffer-modified-p))
+    (minmo--status 'modified 'disk))
+   ;; unmodified (fallback):
    (t (minmo--status 'unmodified 'disk))
    ))
 
