@@ -49,7 +49,7 @@
 ;; left              ◱◰ : modified/staged    : indexed
 ;; right             ◳◲ : ignored/untracked  : unindexed
 ;; top               ◰◳ : staged/ignored     : ready
-;; bottom            ◱◲ : modified/untracked : dirty
+;; bottom            ◱◲ : modified/untracked : unready
 
 (defconst minmo-status-alist
   '(
@@ -247,6 +247,9 @@ Optional FORCE means ignore the minmo--git-directory-table."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; project
 
+(defcustom minmo-project-prefix " " "prefix for the project string. usually a
+single space.")
+
 (defvar-local minmo--project-cache nil)
 
 (defun minmo--cache-project ()
@@ -258,7 +261,8 @@ Optional FORCE means ignore the minmo--git-directory-table."
                     ;; actually uses the same old vc-mode logic I wanted to
                     ;; avoid.
                     (git (minmo--find-git buffer-file-name)))
-          (concat " " (file-name-nondirectory (directory-file-name git))))
+          (concat minmo-project-prefix
+                  (file-name-nondirectory (directory-file-name git))))
         ))
 
 (defun minmo-project () minmo--project-cache)
@@ -268,18 +272,21 @@ Optional FORCE means ignore the minmo--git-directory-table."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; major-mode
 
+(defcustom minmo-major-mode-prefix " " "prefix for the status string. usually a
+single space.")
+
+(defcustom minmo-major-modes-to-ignore '(emacs-lisp-mode markdown-mode um-mode)
+  "list of major-modes to ignore")
+
 ;; current solution is to throw out a few redundant, obvious modes.
 ;; NOTE: using major-mode directly, rather than mode-name, because
 ;; the "pretty print" format is annoying.
 (defun minmo-major-mode ()
-  (unless (member major-mode '(
-                               um-mode
-                               markdown-mode
-                               emacs-lisp-mode
-                               ))
-    ;; major-mode is first evaluated, then the symbol-name of
-    ;; the return value is fetched as string:
-    (concat " " (symbol-name major-mode))))
+  (unless (member major-mode minmo-major-modes-to-ignore)
+    (concat minmo-major-mode-prefix
+            ;; major-mode is first evaluated, then the symbol-name of
+            ;; the return value is fetched as string:
+            (symbol-name major-mode))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; input-method
