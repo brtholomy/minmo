@@ -78,20 +78,32 @@ filesystem FSTYPE, 'git or 'disk."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; branch
 
+(defcustom minmo-branch-prefix ":" "prefix for the branch string.")
+
 (defvar-local minmo--vc-branch-cache nil
   "Cached mode-line string for git branch.")
 
-(defun minmo--fetch-vc-branch (file)
-  "Get the branch from vc state cache if available, otherwise call git."
-  (concat ":" (or (vc-git--symbolic-ref file)
-                  ;; first 7 of commit hash:
-                  (substring (vc-git-working-revision file) 0 7)
-                  "?")))
+(defun minmo--git-branch (file)
+  "Return the branch name or detached HEAD hash."
+  (let* ((default-directory (file-name-directory file))
+         (branch (with-temp-buffer
+                   (when (eq 0 (call-process "git" nil t nil "branch" "--show-current"))
+                     (string-trim (buffer-string))))))
+    (concat minmo-branch-prefix
+            (if (and branch (not (string-empty-p branch))) branch
+              ;; fallback to short hash when HEAD is detached:
+              (with-temp-buffer
+                (if (eq 0 (call-process "git" nil t nil "rev-parse" "--short" "HEAD"))
+                    (string-trim (buffer-string))
+                  "?"))))))
 
 (defun minmo-branch () minmo--vc-branch-cache)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; status
+
+(defcustom minmo-status-prefix " " "prefix for the status string. usually a
+single space.")
 
 (defvar-local minmo--vc-status-cache nil
   "Cached mode-line string for git file status.")
@@ -99,31 +111,57 @@ filesystem FSTYPE, 'git or 'disk."
 (defun minmo-vc-status ()
   (or minmo--vc-status-cache " "))
 
+(defun minmo--find-git (file)
+  "Walk up the directory tree looking for `.git'. Returns root path or nil."
+  ;; TODO: consider setting up a cache, which could be overridden for certain
+  ;; hooks, like find-file and revert.
+  (locate-dominating-file file ".git"))
+
+(defun minmo--git-status-short (file)
+  "Return the 2-character git status for FILE. Returns a string in all cases."
+  (with-temp-buffer
+    (if-let* ((default-directory (file-name-directory file))
+              (_ (eq 0 (call-process "git" nil t nil "status" "--porcelain"
+                                     "--ignored" "--" (file-name-nondirectory file))))
+              (_ (>= (buffer-size) 2)))
+        (substring (buffer-string) 0 2)
+      "  ")))
+
+(defun minmo--git-status (file)
+  "Return the minmo status string according to `minmo-status-alist'."
+  (let* ((status (minmo--git-status-short file))
+         (char-index (aref status 0))
+         (char-work  (aref status 1)))
+    (concat minmo-status-prefix
+            (cond
+             ((string= status "  ") (minmo--status 'unmodified 'git))
+             ((string= status "!!") (minmo--status 'readonly/ignored 'git))
+             ((string= status "A ") (minmo--status 'new 'git))
+             ((string= status "??") (minmo--status 'nofile/untracked 'git))
+             ;; TODO: split modified/staged:
+             ;; staged:
+             ((memq char-index '(?M ?A)) (minmo--status 'modified/staged 'git))
+             ;; modified:
+             ((and (eq char-index ?\s) (eq char-work ?M)) (minmo--status 'modified/staged 'git))
+             (t (minmo--status 'unmodified 'git))))))
+
 (defun minmo--update-vc-cache ()
   "Call git and cache the mode-line string."
-  (when (and (minmo--file-exists-locally-p)
-             ;; NOTE: this is cached via vc-backend and vc-file-prop-obarray,
-             ;; so it's safe as a guardrail:
-             (eq (vc-responsible-backend buffer-file-name t) 'Git))
+  (when (minmo--file-exists-locally-p)
+    (let ((old-status minmo--vc-status-cache)
+          (old-branch minmo--vc-branch-cache)
+          (git (minmo--find-git buffer-file-name)))
 
-    ;; NOTE: this is cached via vc-file-prop-obarray
-    (setq minmo--vc-branch-cache (minmo--fetch-vc-branch buffer-file-name))
-
-    ;; NOTE: this is not cached and will run git:
-    (let ((status (vc-git-state buffer-file-name))
-          (old minmo--vc-status-cache))
-      (setq minmo--vc-status-cache
-            (concat " " (pcase status
-                          ('up-to-date   (minmo--status 'unmodified 'git))
-                          ('edited       (minmo--status 'modified/staged 'git))
-                          ('added        (minmo--status 'new 'git))
-                          ('needs-merge  (minmo--status 'modified/staged 'git))
-                          ('conflict     (minmo--status 'modified/staged 'git))
-                          ('unregistered (minmo--status 'nofile/untracked 'git))
-                          ('ignored      (minmo--status 'readonly/ignored 'git))
-                          (_             (minmo--status 'unmodified 'git)))))
-      ;; redraw only when it changed:
-      (when (not (string= old minmo--vc-status-cache))
+      (if git
+          (progn
+            (setq minmo--vc-status-cache (minmo--git-status buffer-file-name))
+            (setq minmo--vc-branch-cache (minmo--git-branch buffer-file-name)))
+        ;; NOTE: not in a git repo: clear the caches if something changed:
+        (setq minmo--vc-branch-cache nil)
+        (setq minmo--vc-status-cache nil))
+      ;; NOTE: redraw only when changed:
+      (when (or (not (string= old-status minmo--vc-status-cache))
+                (not (string= old-branch minmo--vc-branch-cache)))
         (force-mode-line-update)))))
 
 ;; NOTE: update the cache with file changes
@@ -146,8 +184,8 @@ filesystem FSTYPE, 'git or 'disk."
 (add-hook 'window-buffer-change-functions #'minmo--update-vc-cache-window-status)
 
 ;; this is set by vc-hooks.el, which is loaded with `vc'
-;; we still want this, because vc-responsible-backend and vc-git--symbolic-ref
-;; use the cache set by this function:
+;; TODO: remove?
+;; if we don't use vc-responsible-backend and vc-git--symbolic-ref
 ;; (remove-hook 'find-file-hook #'vc-refresh-state)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
