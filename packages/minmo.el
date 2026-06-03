@@ -121,11 +121,14 @@ filesystem FSTYPE, 'git or 'disk."
 Optional FORCE means ignore the minmo--git-directory-table."
   (let* ((dir (file-name-directory file))
          (hash (gethash dir minmo--git-directory-table)))
-    (if (or force (not hash))
-        ;; NOTE: store 'ignore for files not under .git, so these calls are also optimized:
-        (puthash dir (or (locate-dominating-file file ".git") 'ignore) minmo--git-directory-table)
-      ;; but return nil when 'ignore, so that this function serves as a guard:
-      (if (eq hash 'ignore) nil hash))))
+    (when (or force (not hash))
+      ;; NOTE: store 'ignore for files not under .git, so these calls are also optimized:
+      (setq hash (puthash dir (or
+                               (locate-dominating-file file ".git")
+                               'ignore)
+                          minmo--git-directory-table)))
+    ;; but return nil when 'ignore, so that this function serves as a guard:
+    (if (eq hash 'ignore) nil hash)))
 
 (defun minmo--file-exists-locally-p ()
   "Utility predicate to prevent expensive VC checks remotely."
