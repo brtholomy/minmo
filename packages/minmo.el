@@ -68,10 +68,6 @@ filesystem FSTYPE, 'git or 'disk."
     (propertize (car pair) 'face (cdr pair))
     ))
 
-(defun minmo--file-exists-locally-p ()
-  "Utility predicate to prevent expensive VC checks remotely."
-  (and buffer-file-name (not (file-remote-p (buffer-file-name)))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; branch
 
@@ -108,11 +104,23 @@ single space.")
 (defun minmo-vc-status ()
   (or minmo--vc-status-cache " "))
 
-(defun minmo--find-git (file)
-  "Walk up the directory tree looking for `.git'. Returns root path or nil."
-  ;; TODO: consider setting up a cache, which could be overridden for certain
-  ;; hooks, like find-file and revert.
-  (locate-dominating-file file ".git"))
+(defvar minmo--git-directory-table (make-hash-table) "Store known directories
+with .git")
+
+(defun minmo--find-git (file &optional force)
+  "Walk up the directory tree looking for `.git'. Returns root path or nil.
+Optional FORCE means ignore the minmo--git-directory-table."
+  (let* ((dir (file-name-directory file))
+         (hash (gethash dir minmo--git-directory-table)))
+    (if (or force (not hash))
+        ;; NOTE: this will store nil for files not under .git, which means the
+        ;; check will always fire. consider storing a symbol here.
+        (puthash dir (locate-dominating-file file ".git") minmo--git-directory-table)
+      hash)))
+
+(defun minmo--file-exists-locally-p ()
+  "Utility predicate to prevent expensive VC checks remotely."
+  (and buffer-file-name (not (file-remote-p (buffer-file-name)))))
 
 (defun minmo--git-status-short (file)
   "Return the 2-character git status for FILE. Returns a string in all cases."
@@ -139,12 +147,12 @@ single space.")
              ((memq char-index '(?M ?A)) (minmo--status 'staged 'git))
              (t (minmo--status 'unmodified 'git))))))
 
-(defun minmo--update-vc-cache ()
+(defun minmo--update-vc-cache (&optional force)
   "Call git and cache the mode-line string."
   (when (minmo--file-exists-locally-p)
     (let ((old-status minmo--vc-status-cache)
           (old-branch minmo--vc-branch-cache)
-          (git (minmo--find-git buffer-file-name)))
+          (git (minmo--find-git buffer-file-name force)))
 
       (if git
           (progn
@@ -158,12 +166,15 @@ single space.")
                 (not (string= old-branch minmo--vc-branch-cache)))
         (force-mode-line-update)))))
 
-;; NOTE: update the cache with file changes
-(add-hook 'find-file-hook #'minmo--update-vc-cache)
-(add-hook 'after-save-hook #'minmo--update-vc-cache)
-(add-hook 'after-revert-hook #'minmo--update-vc-cache)
+(defun minmo--update-vc-cache-force () (minmo--update-vc-cache t))
 
-;; and when window state changes:
+;; NOTE: force update minmo--git-directory-table upon open:
+(add-hook 'find-file-hook #'minmo--update-vc-cache-force)
+(add-hook 'after-revert-hook #'minmo--update-vc-cache-force)
+;; but not for a save because this is frequent:
+(add-hook 'after-save-hook #'minmo--update-vc-cache)
+
+;; NOTE: but normal cache update when window state changes:
 (defun minmo--update-vc-cache-window-status (frame-or-window)
   (let ((win (if (framep frame-or-window)
                  (frame-selected-window frame-or-window)
