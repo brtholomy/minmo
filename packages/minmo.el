@@ -81,9 +81,9 @@ filesystem FSTYPE, 'git or 'disk."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; branch
 
-(defcustom minmo-branch-prefix ":" "prefix for the branch string.")
+(defcustom minmo-git-branch-prefix ":" "prefix for the branch string.")
 
-(defvar-local minmo--vc-branch-cache nil
+(defvar-local minmo--git-branch-cache nil
   "Cached mode-line string for git branch.")
 
 (defun minmo--git-branch (file)
@@ -92,7 +92,7 @@ filesystem FSTYPE, 'git or 'disk."
          (branch (with-temp-buffer
                    (when (eq 0 (call-process "git" nil t nil "branch" "--show-current"))
                      (string-trim (buffer-string))))))
-    (concat minmo-branch-prefix
+    (concat minmo-git-branch-prefix
             (if (and branch (not (string-empty-p branch))) branch
               ;; fallback to short hash when HEAD is detached:
               (with-temp-buffer
@@ -100,18 +100,18 @@ filesystem FSTYPE, 'git or 'disk."
                     (string-trim (buffer-string))
                   "?"))))))
 
-(defun minmo-branch () minmo--vc-branch-cache)
+(defun minmo-git-branch () minmo--git-branch-cache)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; status
 
-(defcustom minmo-status-prefix " " "prefix for the git status string.")
+(defcustom minmo-git-status-prefix " " "prefix for the git status string.")
 
-(defvar-local minmo--vc-status-cache nil
+(defvar-local minmo--git-status-cache nil
   "Cached mode-line string for git file status.")
 
-(defun minmo-vc-status ()
-  (or minmo--vc-status-cache " "))
+(defun minmo-git-status ()
+  (or minmo--git-status-cache " "))
 
 (defvar minmo--git-directory-table (make-hash-table :test 'equal)
   "Store known directories with .git")
@@ -145,7 +145,7 @@ Optional FORCE means ignore the minmo--git-directory-table."
   (let* ((status (minmo--git-status-short file))
          (char-index (aref status 0))
          (char-work  (aref status 1)))
-    (concat minmo-status-prefix
+    (concat minmo-git-status-prefix
             (cond
              ((string= status "  ") (minmo--status 'unmodified 'git))
              ((string= status "!!") (minmo--status 'readonly/ignored 'git))
@@ -155,46 +155,46 @@ Optional FORCE means ignore the minmo--git-directory-table."
              ((memq char-index '(?M ?A)) (minmo--status 'staged 'git))
              (t (minmo--status 'unmodified 'git))))))
 
-(defun minmo--update-vc-cache (&optional force)
+(defun minmo--update-git-cache (&optional force)
   "Call git and cache the mode-line string."
   (when (minmo--file-exists-locally-p)
-    (let ((old-status minmo--vc-status-cache)
-          (old-branch minmo--vc-branch-cache)
+    (let ((old-status minmo--git-status-cache)
+          (old-branch minmo--git-branch-cache)
           (git (minmo--find-git buffer-file-name force)))
 
       (if git
           (progn
-            (setq minmo--vc-status-cache (minmo--git-status buffer-file-name))
-            (setq minmo--vc-branch-cache (minmo--git-branch buffer-file-name)))
+            (setq minmo--git-status-cache (minmo--git-status buffer-file-name))
+            (setq minmo--git-branch-cache (minmo--git-branch buffer-file-name)))
         ;; NOTE: not in a git repo: clear the caches if something changed:
-        (setq minmo--vc-branch-cache nil)
-        (setq minmo--vc-status-cache nil))
+        (setq minmo--git-branch-cache nil)
+        (setq minmo--git-status-cache nil))
       ;; NOTE: redraw only when changed:
-      (when (or (not (string= old-status minmo--vc-status-cache))
-                (not (string= old-branch minmo--vc-branch-cache)))
+      (when (or (not (string= old-status minmo--git-status-cache))
+                (not (string= old-branch minmo--git-branch-cache)))
         (force-mode-line-update)))))
 
-(defun minmo--update-vc-cache-force () (minmo--update-vc-cache t))
+(defun minmo--update-git-cache-force () (minmo--update-git-cache t))
 
 ;; NOTE: force update minmo--git-directory-table upon open:
-(add-hook 'find-file-hook #'minmo--update-vc-cache-force)
-(add-hook 'after-revert-hook #'minmo--update-vc-cache-force)
+(add-hook 'find-file-hook #'minmo--update-git-cache-force)
+(add-hook 'after-revert-hook #'minmo--update-git-cache-force)
 ;; but not for a save because this is frequent:
-(add-hook 'after-save-hook #'minmo--update-vc-cache)
+(add-hook 'after-save-hook #'minmo--update-git-cache)
 
 ;; NOTE: but normal cache update when window state changes:
-(defun minmo--update-vc-cache-window-status (frame-or-window)
+(defun minmo--update-git-cache-window-status (frame-or-window)
   (let ((win (if (framep frame-or-window)
                  (frame-selected-window frame-or-window)
                frame-or-window)))
     (with-current-buffer (window-buffer win)
-      (minmo--update-vc-cache))))
+      (minmo--update-git-cache))))
 
 ;; NOTE: window-state-change-functions includes size changes, which would be spammy.
 ;; this does selection changes, eg other-window:
-(add-hook 'window-selection-change-functions #'minmo--update-vc-cache-window-status)
+(add-hook 'window-selection-change-functions #'minmo--update-git-cache-window-status)
 ;; this does buffer changes, eg switch-to-buffer:
-(add-hook 'window-buffer-change-functions #'minmo--update-vc-cache-window-status)
+(add-hook 'window-buffer-change-functions #'minmo--update-git-cache-window-status)
 
 ;; this is set by vc-hooks.el, which is loaded with `vc'
 ;; TODO: remove?
@@ -208,25 +208,25 @@ Optional FORCE means ignore the minmo--git-directory-table."
 ;; auto-revert-check-vc-info is t, but restrict to visible windows. Which is
 ;; somewhat an obvious optimization.
 
-(defcustom minmo-vc-cache-timer-interval 5
-  "interval for `minmo-vc-cache-timer'")
+(defcustom minmo-git-cache-timer-interval 5
+  "interval for `minmo-git-cache-timer'")
 
-(defvar minmo-vc-cache-timer nil)
+(defvar minmo-git-cache-timer nil)
 
-(defun minmo--vc-update-cache-visible ()
+(defun minmo--update-git-cache-visible ()
   "Update vc cache for visible windows."
   (dolist (win (window-list))
     (with-current-buffer (window-buffer win)
-      (minmo--update-vc-cache))))
+      (minmo--update-git-cache))))
 
 ;; guard against spawning multiple when this file is eval'd :
-(when minmo-vc-cache-timer (cancel-timer minmo-vc-cache-timer))
-(setq minmo-vc-cache-timer
+(when minmo-git-cache-timer (cancel-timer minmo-git-cache-timer))
+(setq minmo-git-cache-timer
       ;; TODO: run-with-idle-timer ?
       (run-with-timer
-       minmo-vc-cache-timer-interval
-       minmo-vc-cache-timer-interval
-       'minmo--vc-update-cache-visible))
+       minmo-git-cache-timer-interval
+       minmo-git-cache-timer-interval
+       'minmo--update-git-cache-visible))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; disk
@@ -395,7 +395,7 @@ Optional FORCE means ignore the minmo--git-directory-table."
 
   ;;;;;;;;;;;;;
   ;; status
-  '(:eval (minmo-vc-status))
+  '(:eval (minmo-git-status))
   '(:eval (minmo-disk-status))
 
   ;;;;;;;;;;;;;
@@ -404,7 +404,7 @@ Optional FORCE means ignore the minmo--git-directory-table."
 
   ;;;;;;;;;;;;;
   ;; branch
-  '(:eval (minmo-branch))
+  '(:eval (minmo-git-branch))
 
   ;;;;;;;;;;;;;
   ;; major-mode
