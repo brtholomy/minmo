@@ -26,19 +26,20 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; unified symbol set for git and disk status on tty and pts
 ;;
-;;                           disk  git
-;; unmodified         : ◻  : grey  grey
-;; --
-;; modified           : ◱  : red   orange
-;; readonly/ignored   : ◳  : green green
-;; --
-;; staged             : ◰  :       blue
-;; nofile/untracked   : ◲  : blue  red
+;;                        disk    : git
+;; ----------------------------------------
+;; unmodified       : ◻ : shadow  : shadow
+;; modified         : ◱ : error   : warning
+;; readonly/ignored : ◳ : success : success
+;; staged           : ◰ :         : link
+;; nofile/untracked : ◲ : link    : error
 
-;; left                 ◱◰ : modified/staged    : indexed
-;; right                ◳◲ : ignored/untracked  : unindexed
-;; top                  ◰◳ : staged/ignored     : ready
-;; bottom               ◱◲ : modified/untracked : dirty
+;; quadrant semantics:
+;;
+;; left              ◱◰ : modified/staged    : indexed
+;; right             ◳◲ : ignored/untracked  : unindexed
+;; top               ◰◳ : staged/ignored     : ready
+;; bottom            ◱◲ : modified/untracked : dirty
 
 (defconst minmo-status-alist
   '(
