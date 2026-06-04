@@ -41,7 +41,7 @@
 ;; unmodified       : ◻ : shadow  : shadow
 ;; modified         : ◱ : error   : warning
 ;; readonly/ignored : ◳ : success : success
-;; staged           : ◰ : warning : link
+;; orphan/staged    : ◰ : warning : link
 ;; nofile/untracked : ◲ : link    : error
 
 ;; quadrant semantics:
@@ -56,7 +56,7 @@
     (unmodified . (((unicode . "◻") (ascii . ".")) . ((disk . nil) (git . nil))))
     (modified . (((unicode . "◱") (ascii . "*")) . ((disk . error) (git . warning))))
     (readonly/ignored . (((unicode . "◳") (ascii . "_")) . ((disk . success) (git . success))))
-    (staged . (((unicode . "◰") (ascii . "+")) . ((disk . warning) (git . link))))
+    (orphan/staged . (((unicode . "◰") (ascii . "+")) . ((disk . warning) (git . link))))
     (nofile/untracked . (((unicode . "◲") (ascii . "!")) . ((disk . link) (git . error))))
     )
   "Unified symbol set for git and disk status with unicode and ascii variants
@@ -156,7 +156,7 @@ Optional FORCE means ignore the minmo--git-directory-table."
              ((string= status "??") (minmo--status 'nofile/untracked 'git))
              ;; report modified whether partially staged or not:
              ((eq char-work ?M) (minmo--status 'modified 'git))
-             ((memq char-index '(?M ?A)) (minmo--status 'staged 'git))
+             ((memq char-index '(?M ?A)) (minmo--status 'orphan/staged 'git))
              (t (minmo--status 'unmodified 'git))))))
 
 (defun minmo--update-git-cache (&optional force)
@@ -281,7 +281,7 @@ Optional FORCE means ignore the minmo--git-directory-table."
    ;; NOTE: visited-file-modtime involves no disk read:
    ((and buffer-file-name (or (eq -1 (visited-file-modtime))
                               (not minmo--file-exists-cache)))
-    (minmo--status 'staged 'disk))
+    (minmo--status 'orphan/staged 'disk))
    ;; normally modified:
    ((and buffer-file-name (buffer-modified-p))
     (minmo--status 'modified 'disk))
