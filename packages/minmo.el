@@ -36,13 +36,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; unified symbol set for git and disk status on tty and pts
 ;;
-;;                        disk    : git
+;;                        git       disk
 ;; ----------------------------------------
 ;; unmodified       : ◻ : shadow  : shadow
-;; modified         : ◱ : error   : warning
-;; readonly/ignored : ◳ : success : success
-;; orphan/staged    : ◰ : warning : link
-;; nofile/untracked : ◲ : link    : error
+;; modified         : ◱ : warning : error
+;; ignored/readonly : ◳ : success : success
+;; staged/orphan    : ◰ : link    : warning
+;; untracked/buffer : ◲ : error   : link
 
 ;; quadrant semantics:
 ;;
@@ -55,9 +55,9 @@
   '(
     (unmodified . (((unicode . "◻") (ascii . ".")) . ((disk . nil) (git . nil))))
     (modified . (((unicode . "◱") (ascii . "*")) . ((disk . error) (git . warning))))
-    (readonly/ignored . (((unicode . "◳") (ascii . "_")) . ((disk . success) (git . success))))
-    (orphan/staged . (((unicode . "◰") (ascii . "+")) . ((disk . warning) (git . link))))
-    (nofile/untracked . (((unicode . "◲") (ascii . "!")) . ((disk . link) (git . error))))
+    (ignored/readonly . (((unicode . "◳") (ascii . "_")) . ((disk . success) (git . success))))
+    (staged/orphan . (((unicode . "◰") (ascii . "+")) . ((disk . warning) (git . link))))
+    (untracked/buffer . (((unicode . "◲") (ascii . "!")) . ((disk . link) (git . error))))
     )
   "Unified symbol set for git and disk status with unicode and ascii variants
   and their respective faces.")
@@ -152,11 +152,11 @@ Optional FORCE means ignore the minmo--git-directory-table."
     (concat minmo-git-status-prefix
             (cond
              ((string= status "  ") (minmo--status 'unmodified 'git))
-             ((string= status "!!") (minmo--status 'readonly/ignored 'git))
-             ((string= status "??") (minmo--status 'nofile/untracked 'git))
+             ((string= status "!!") (minmo--status 'ignored/readonly 'git))
+             ((string= status "??") (minmo--status 'untracked/buffer 'git))
              ;; report modified whether partially staged or not:
              ((eq char-work ?M) (minmo--status 'modified 'git))
-             ((memq char-index '(?M ?A)) (minmo--status 'orphan/staged 'git))
+             ((memq char-index '(?M ?A)) (minmo--status 'staged/orphan 'git))
              (t (minmo--status 'unmodified 'git))))))
 
 (defun minmo--update-git-cache (&optional force)
@@ -273,15 +273,15 @@ Optional FORCE means ignore the minmo--git-directory-table."
   (cond
    ;; readonly:
    (buffer-read-only
-    (minmo--status 'readonly/ignored 'disk))
+    (minmo--status 'ignored/readonly 'disk))
    ;; no file but modified:
    ((and (not buffer-file-name) (buffer-modified-p))
-    (minmo--status 'nofile/untracked 'disk))
+    (minmo--status 'untracked/buffer 'disk))
    ;; has a path but was never visited or no longer exists.
    ;; NOTE: visited-file-modtime involves no disk read:
    ((and buffer-file-name (or (eq -1 (visited-file-modtime))
                               (not minmo--file-exists-cache)))
-    (minmo--status 'orphan/staged 'disk))
+    (minmo--status 'staged/orphan 'disk))
    ;; normally modified:
    ((and buffer-file-name (buffer-modified-p))
     (minmo--status 'modified 'disk))
