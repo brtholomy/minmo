@@ -187,7 +187,7 @@ Optional FORCE means ignore the minmo--git-directory-table."
 (add-hook 'after-save-hook #'minmo--update-git-cache)
 
 ;; NOTE: but normal cache update when window state changes:
-(defun minmo--update-git-cache-window-status (frame-or-window)
+(defun minmo--update-git-cache-window (frame-or-window)
   (let ((win (if (framep frame-or-window)
                  (frame-selected-window frame-or-window)
                frame-or-window)))
@@ -196,9 +196,9 @@ Optional FORCE means ignore the minmo--git-directory-table."
 
 ;; NOTE: window-state-change-functions includes size changes, which would be spammy.
 ;; this does selection changes, eg other-window:
-(add-hook 'window-selection-change-functions #'minmo--update-git-cache-window-status)
+(add-hook 'window-selection-change-functions #'minmo--update-git-cache-window)
 ;; this does buffer changes, eg switch-to-buffer:
-(add-hook 'window-buffer-change-functions #'minmo--update-git-cache-window-status)
+(add-hook 'window-buffer-change-functions #'minmo--update-git-cache-window)
 
 ;; this is set by vc-hooks.el, which is loaded with `vc'
 ;; TODO: remove?
@@ -245,6 +245,30 @@ Optional FORCE means ignore the minmo--git-directory-table."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; disk
 
+(defvar-local minmo--file-exists-cache nil
+  "Cached boolean indicating if the file exists on disk.")
+
+(defun minmo--update-file-exists-cache ()
+  (when buffer-file-name
+    (setq minmo--file-exists-cache
+          ;; skip the check for remote files and assume they exist:
+          (if (file-remote-p (buffer-file-name)) t
+            (file-exists-p buffer-file-name)))))
+
+(defun minmo--update-file-exists-cache-window (frame-or-window)
+  (let ((win (if (framep frame-or-window)
+                 (frame-selected-window frame-or-window)
+               frame-or-window)))
+    (with-current-buffer (window-buffer win)
+      (minmo--update-file-exists-cache))))
+
+(add-hook 'find-file-hook #'minmo--update-file-exists-cache)
+;; NOTE: before hook, because revert will refuse when it's gone:
+(add-hook 'before-revert-hook #'minmo--update-file-exists-cache)
+(add-hook 'after-save-hook #'minmo--update-file-exists-cache)
+(add-hook 'window-selection-change-functions #'minmo--update-file-exists-cache-window)
+(add-hook 'window-buffer-change-functions #'minmo--update-file-exists-cache-window)
+
 (defun minmo-disk-status ()
   (cond
    ;; readonly:
@@ -253,9 +277,10 @@ Optional FORCE means ignore the minmo--git-directory-table."
    ;; no file but modified:
    ((and (not buffer-file-name) (buffer-modified-p))
     (minmo--status 'nofile/untracked 'disk))
-   ;; has a path but was never visited: new unsaved file
+   ;; has a path but was never visited or no longer exists.
    ;; NOTE: visited-file-modtime involves no disk read:
-   ((and buffer-file-name (eq -1 (visited-file-modtime)))
+   ((and buffer-file-name (or (eq -1 (visited-file-modtime))
+                              (not minmo--file-exists-cache)))
     (minmo--status 'staged 'disk))
    ;; normally modified:
    ((and buffer-file-name (buffer-modified-p))
