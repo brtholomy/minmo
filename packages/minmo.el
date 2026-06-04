@@ -36,13 +36,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; unified symbol set for git and disk status on tty and pts
 ;;
-;;                        git       disk
-;; ----------------------------------------
-;; unmodified       : ◻ : shadow  : shadow
-;; modified         : ◱ : warning : error
-;; ignored/readonly : ◳ : success : success
-;; staged/orphan    : ◰ : link    : warning
-;; untracked/buffer : ◲ : error   : link
+;; status             u : a : git     : disk
+;; --------------------------------------------
+;; unmodified       : ◻ : . : nil     : nil
+;; modified         : ◱ : * : warning : error
+;; ignored/readonly : ◳ : _ : success : success
+;; staged/orphan    : ◰ : + : link    : warning
+;; untracked/buffer : ◲ : ! : error   : link
 
 ;; quadrant semantics:
 ;;
@@ -62,9 +62,14 @@
   "Unified symbol set for git and disk status with unicode and ascii variants
   and their respective faces.")
 
+(defcustom minmo-use-ascii nil
+  "whether to use ascii symbols instead of unicode"
+  :type '(boolean))
+
 (defun minmo--status-string-face (status fstype)
   (let* (
-         (encoding (if (string-prefix-p "xterm" (tty-type)) 'unicode 'ascii))
+         (encoding (if (or minmo-use-ascii (not (string-prefix-p "xterm" (tty-type))))
+                       'ascii 'unicode))
          (row (cdr (assoc status minmo-status-alist)))
          (str (cdr (assoc encoding (car row))))
          (face (cdr (assoc fstype (cdr row))))
