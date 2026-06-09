@@ -375,7 +375,7 @@ Optional FORCE means ignore the minmo--git-directory-table."
   :type '(string)
   :group  'minmo)
 
-(defcustom minmo-major-modes-to-ignore '(emacs-lisp-mode markdown-mode um-mode)
+(defcustom minmo-major-modes-to-ignore '(emacs-lisp-mode markdown-mode)
   "list of major-modes to ignore"
   :type '(repeat symbol)
   :group  'minmo)
@@ -451,7 +451,6 @@ Optional FORCE means ignore the minmo--git-directory-table."
   '(
     view-mode
     outline-minor-mode
-    olivetti-mode
     eglot--managed-mode
     )
   "minor modes to show."
