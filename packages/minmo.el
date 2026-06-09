@@ -63,13 +63,17 @@
   and their respective faces.")
 
 (defcustom minmo-use-ascii nil
-  "whether to use ascii symbols instead of unicode"
-  :type '(boolean))
+  "Whether to use ascii symbols instead of unicode. Defaults to ascii if
+`tty-type' is not an xterm derivative."
+  :type '(boolean)
+  :set (lambda (sym val)
+         (if (not (string-prefix-p "xterm" (tty-type)))
+             (set sym t)
+           (set sym val))))
 
 (defun minmo--status-string-face (status fstype)
   (let* (
-         (encoding (if (or minmo-use-ascii (not (string-prefix-p "xterm" (tty-type))))
-                       'ascii 'unicode))
+         (encoding (if minmo-use-ascii 'ascii 'unicode))
          (row (cdr (assoc status minmo-status-alist)))
          (str (cdr (assoc encoding (car row))))
          (face (cdr (assoc fstype (cdr row))))
