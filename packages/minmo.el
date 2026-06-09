@@ -140,7 +140,7 @@ Optional FORCE means ignore the minmo--git-directory-table."
     (if (eq hash 'ignore) nil hash)))
 
 (defun minmo--file-exists-locally-p ()
-  "Utility predicate to prevent expensive VC checks remotely."
+  "Utility predicate to prevent expensive reads remotely."
   (and buffer-file-name (not (file-remote-p (buffer-file-name)))))
 
 (defun minmo--git-status-short (file)
@@ -225,11 +225,11 @@ Optional FORCE means ignore the minmo--git-directory-table."
   "Cached boolean indicating if the file exists on disk.")
 
 (defun minmo--update-file-exists-cache ()
-  (when buffer-file-name
-    (setq minmo--file-exists-cache
-          ;; skip the check for remote files and assume they exist:
-          (if (file-remote-p (buffer-file-name)) t
-            (file-exists-p buffer-file-name)))))
+  (setq minmo--file-exists-cache
+        ;; skip the check for remote files and assume they exist:
+        (if (minmo--file-exists-locally-p)
+            (file-exists-p buffer-file-name)
+          t)))
 
 (defun minmo--update-file-exists-cache-window (frame-or-window)
   (minmo--window-hook frame-or-window 'minmo--update-file-exists-cache))
