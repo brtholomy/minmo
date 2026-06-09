@@ -193,6 +193,7 @@ Optional FORCE means ignore the minmo--git-directory-table."
 
 ;; NOTE: but normal cache update when window state changes:
 (defun minmo--window-hook (frame-or-window func)
+  "calls FUNC for window change hooks, setting window and buffer accordingly."
   (let ((win (if (framep frame-or-window)
                  (frame-selected-window frame-or-window)
                frame-or-window)))
@@ -257,41 +258,61 @@ Optional FORCE means ignore the minmo--git-directory-table."
    ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; timer
+;;;; timers
 
 ;; NOTE: the idea here is to keep the timer like vc-mode uses when
 ;; auto-revert-check-vc-info is t, but restrict to visible windows. Which is
 ;; somewhat an obvious optimization.
 
 (defvar minmo-git-cache-timer nil)
+(defvar minmo-disk-cache-timer nil)
 
-(defun minmo--update-git-cache-visible ()
-  "Update vc cache for visible windows."
+(defun minmo--funcall-all-windows (func)
+  "call FUNC for all current windows, setting buffer accordingly."
   (dolist (win (window-list))
     (with-current-buffer (window-buffer win)
-      (minmo--update-git-cache))))
+      (funcall func))))
 
-(defun minmo--start-timer (symbol value)
-  "Apply the new timer VALUE to SYMBOL and restart the timer."
+(defun minmo--update-git-cache-windows ()
+  (minmo--funcall-all-windows 'minmo--update-git-cache))
+
+(defun minmo--update-disk-cache-windows ()
+  (minmo--funcall-all-windows 'minmo--update-file-exists-cache))
+
+(defun minmo--start-timer (symbol value timer func)
+  "Apply the new timer VALUE to SYMBOL and restart the TIMER calling FUNC."
   ;; explicitly set the variable, otherwise :set swallows it
   (set-default symbol value)
   ;; guard against spawning multiple:
-  (when minmo-git-cache-timer
-    (cancel-timer minmo-git-cache-timer)
-    (setq minmo-git-cache-timer nil))
-  ;; allow disabling:
-  (when (and (numberp value) (> value 0))
-    (setq minmo-git-cache-timer
-          (run-with-timer value value #'minmo--update-git-cache-visible))))
+  (let ((tval (symbol-value timer)))
+    (when (timerp tval) (cancel-timer tval)))
+  ;; allow disabling by setting 0 or nil:
+  (if (and (numberp value) (> value 0))
+      (set timer (run-with-timer value value func))
+    (set timer nil)))
 
+(defun minmo--git-cache-timer-start (symbol value)
+  (minmo--start-timer symbol value 'minmo-git-cache-timer
+                      #'minmo--update-git-cache-windows))
+
+(defun minmo--disk-cache-timer-start (symbol value)
+  (minmo--start-timer symbol value 'minmo-disk-cache-timer
+                      #'minmo--update-disk-cache-windows))
+
+;; NOTE: order is important here because the defcustom will run :set immediately:
 (defcustom minmo-git-cache-timer-interval 5
-  "Interval in seconds for background git caching. Set to nil or 0 to disable."
+  "Interval in seconds to run `minmo--update-git-cache' on visible
+ windows. Set to nil or 0 to disable."
   :type '(choice (integer :tag "Seconds")
                  (const :tag "Disable" nil))
-  :set #'minmo--start-timer)
+  :set #'minmo--git-cache-timer-start)
 
-(minmo--start-timer 'minmo-git-cache-timer-interval
-                    minmo-git-cache-timer-interval)
+(defcustom minmo-disk-cache-timer-interval 5
+  "Interval in seconds to run `minmo--update-file-exists-cache' on
+ visible windows. Set to nil or 0 to disable."
+  :type '(choice (integer :tag "Seconds")
+                 (const :tag "Disable" nil))
+  :set #'minmo--disk-cache-timer-start)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; project
