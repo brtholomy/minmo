@@ -557,10 +557,8 @@ Optional FORCE means ignore the minmo--git-directory-table."
   '(:eval (minmo-minor-modes))
 
   ;;;;;;;;;;;;;
-  ;; keycast
-  ;; I use this dummy symbol because my modeline doesn't have the expected symbol.
-  ;; `keycast' inserts itself after this point:
-  'keycast-mode-line-identifier
+  ;; keycast. see keycast-mode-line-insert-after
+  'minmo-keycast-insert-after
 
   ;;;;;;;;;;;;;
   ;; input-method
