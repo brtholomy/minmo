@@ -102,10 +102,9 @@
 
 (defun minmo--status (status fstype)
   "returns a propertized string with the associated face, given the STATUS and
-filesystem FSTYPE, 'git or 'disk."
+filesystem FSTYPE, `git' or `disk'."
   (let ((pair (minmo--status-string-face status fstype)))
-    (propertize (car pair) 'face (cdr pair))
-    ))
+    (propertize (car pair) 'face (cdr pair))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; branch
