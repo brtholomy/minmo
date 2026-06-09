@@ -25,9 +25,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; buffer-name
 
+(defcustom minmo-buffer-name-face 'success "face for `buffer-name'."
+  :type '(symbol)
+  :group  'minmo)
+
 (defun minmo-buffer-name ()
   (if (mode-line-window-selected-p)
-      (propertize (buffer-name) 'face 'success)
+      (propertize (buffer-name) 'face minmo-buffer-name-face)
     (buffer-name)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -397,9 +401,15 @@ Optional FORCE means ignore the minmo--git-directory-table."
   :type '(string)
   :group  'minmo)
 
+(defcustom minmo-input-method-face 'warning "face for input method."
+  :type '(symbol)
+  :group  'minmo)
+
 (defun minmo-input-method ()
   (when current-input-method-title
-    (concat (propertize current-input-method-title 'face 'warning) minmo-input-method-suffix)
+    (concat
+     (propertize current-input-method-title 'face minmo-input-method-face)
+     minmo-input-method-suffix)
     ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -417,6 +427,10 @@ Optional FORCE means ignore the minmo--git-directory-table."
 (defvar-local minmo--total-lines-cache nil
   "Cached total line count for the current buffer.")
 
+(defcustom minmo-narrow-face 'warning "face for narrow notifier."
+  :type '(symbol)
+  :group  'minmo)
+
 (defun minmo--cache-total-lines ()
   "Refresh the total line count cache."
   ;; 'line-number-at-pos' is C-level:
@@ -430,7 +444,7 @@ Optional FORCE means ignore the minmo--git-directory-table."
 (defun minmo-narrow-or-linecol-total ()
   (when buffer-file-name
     (if (buffer-narrowed-p)
-        (propertize "%n" 'face 'warning)
+        (propertize "%n" 'face minmo-narrow-face)
       ;; consult preview won't have filled out minmo--total-lines-cache:
       (when minmo--total-lines-cache
         (concat minmo-line-column-format
