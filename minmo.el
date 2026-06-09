@@ -1,6 +1,9 @@
 ;; minmo.el --- minimal mode-line -*- lexical-binding: t; -*-
 
-;; my mode line is extremely minimal. However there are a few things I want:
+;; minmo is a (min)imal (mo)de-line with good performance and tight semantics.
+;; by bth
+
+;; The default provides:
 ;;
 ;; buffer-name
 ;; git and disk status
@@ -10,7 +13,11 @@
 ;; minor-mode very selectively
 ;; narrow indicator
 ;; line:col
-;; lines
+;; total lines
+
+;; But `mode-line-format' can easily be set as you wish, using the default as a
+;; starting point. The primary value here are the caching routines for getting
+;; git and disk status with good performance.
 
 ;; NOTE: this has been cleansed of vc-mode dependencies, despite the fact that
 ;; it might seem better practice to use builtin libraries. But `vc' tries much
