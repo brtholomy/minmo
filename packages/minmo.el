@@ -51,6 +51,12 @@
 ;; top               ◰◳ : staged/ignored     : ready
 ;; bottom            ◱◲ : modified/untracked : unready
 
+(defgroup minmo nil
+  "(min)imal (mo)de-line"
+  :link '(url-link :tag "Website" "https://github.com/brtholomy/minmo")
+  :group 'convenience
+  :prefix "minmo-")
+
 (defcustom minmo-status-alist
   '(
     (unmodified . (((unicode . "◻") (ascii . ".")) . ((disk . nil) (git . nil))))
@@ -73,7 +79,7 @@
                        :value-type (choice :tag "Face"
                                            (face :tag "Face name")
                                            (const :tag "None" nil)))))
-  )
+  :group 'minmo)
 
 (defcustom minmo-use-ascii nil
   "Whether to use ascii symbols instead of unicode. Defaults to ascii if
@@ -82,7 +88,8 @@
   :set (lambda (sym val)
          (if (not (string-prefix-p "xterm" (tty-type)))
              (set sym t)
-           (set sym val))))
+           (set sym val)))
+  :group 'minmo)
 
 (defun minmo--status-string-face (status fstype)
   (let* (
@@ -103,7 +110,9 @@ filesystem FSTYPE, 'git or 'disk."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; branch
 
-(defcustom minmo-git-branch-prefix ":" "prefix for the branch string.")
+(defcustom minmo-git-branch-prefix ":" "prefix for the branch string."
+  :type '(string)
+  :group 'minmo)
 
 (defvar-local minmo--git-branch-cache nil
   "Cached mode-line string for git branch.")
@@ -127,7 +136,9 @@ filesystem FSTYPE, 'git or 'disk."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; status
 
-(defcustom minmo-git-status-prefix " " "prefix for the git status string.")
+(defcustom minmo-git-status-prefix " " "prefix for the git status string."
+  :type '(string)
+  :group 'minmo)
 
 (defvar-local minmo--git-status-cache nil
   "Cached mode-line string for git file status.")
@@ -334,7 +345,9 @@ Optional FORCE means ignore the minmo--git-directory-table."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; project
 
-(defcustom minmo-project-prefix " " "prefix for the project notifier.")
+(defcustom minmo-project-prefix " " "prefix for the project notifier."
+  :type '(string)
+  :group  'minmo)
 
 (defvar-local minmo--project-cache nil)
 
@@ -358,10 +371,14 @@ Optional FORCE means ignore the minmo--git-directory-table."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; major-mode
 
-(defcustom minmo-major-mode-prefix " " "prefix for the major mode notifier.")
+(defcustom minmo-major-mode-prefix " " "prefix for the major mode notifier."
+  :type '(string)
+  :group  'minmo)
 
 (defcustom minmo-major-modes-to-ignore '(emacs-lisp-mode markdown-mode um-mode)
-  "list of major-modes to ignore")
+  "list of major-modes to ignore"
+  :type '(repeat symbol)
+  :group  'minmo)
 
 ;; current solution is to throw out a few redundant, obvious modes.
 ;; NOTE: using major-mode directly, rather than mode-name, because
@@ -377,7 +394,9 @@ Optional FORCE means ignore the minmo--git-directory-table."
 ;;; input-method
 
 (defcustom minmo-input-method-suffix " | "
-  "suffix for the input method notifier.")
+  "suffix for the input method notifier."
+  :type '(string)
+  :group  'minmo)
 
 (defun minmo-input-method ()
   (when current-input-method-title
@@ -387,9 +406,13 @@ Optional FORCE means ignore the minmo--git-directory-table."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; line column
 
-(defcustom minmo-line-column-format "%l:%c" "format for line number and column.")
+(defcustom minmo-line-column-format "%l:%c" "format for line number and column."
+  :type '(string)
+  :group  'minmo)
 
-(defcustom minmo-line-column-suffix " " "suffix for the line number and column.")
+(defcustom minmo-line-column-suffix " " "suffix for the line number and column."
+  :type '(string)
+  :group  'minmo)
 
 ;; line count can be expensive for large files, when run continuously. cache it.
 (defvar-local minmo--total-lines-cache nil
@@ -431,16 +454,26 @@ Optional FORCE means ignore the minmo--git-directory-table."
     olivetti-mode
     eglot--managed-mode
     )
-  "minor modes to show.")
+  "minor modes to show."
+  :type '(repeat symbol)
+  :group  'minmo)
 
-(defcustom minmo-minor-modes-face 'font-lock-keyword-face "face for minor modes.")
+(defcustom minmo-minor-modes-face 'font-lock-keyword-face "face for minor modes."
+  :type '(symbol)
+  :group  'minmo)
 
-(defcustom minmo-minor-modes-separator " " "separator for the minor modes list.")
+(defcustom minmo-minor-modes-separator " " "separator for the minor modes list."
+  :type '(string)
+  :group  'minmo)
 
-(defcustom minmo-minor-modes-suffix " " "suffix for the minor modes list.")
+(defcustom minmo-minor-modes-suffix " " "suffix for the minor modes list."
+  :type '(string)
+  :group  'minmo)
 
 (defcustom minmo-minor-modes-strip-suffix-regexp "-minor-mode\\|-mode\\|--managed-mode"
-  "regexp of suffixes from minor modes to strip out.")
+  "regexp of suffixes from minor modes to strip out."
+  :type '(string)
+  :group  'minmo)
 
 (defun minmo-minor-modes ()
   (concat (string-join
