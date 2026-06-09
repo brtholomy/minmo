@@ -51,7 +51,7 @@
 ;; top               ◰◳ : staged/ignored     : ready
 ;; bottom            ◱◲ : modified/untracked : unready
 
-(defconst minmo-status-alist
+(defcustom minmo-status-alist
   '(
     (unmodified . (((unicode . "◻") (ascii . ".")) . ((disk . nil) (git . nil))))
     (modified . (((unicode . "◱") (ascii . "*")) . ((disk . error) (git . warning))))
@@ -60,7 +60,20 @@
     (untracked/buffer . (((unicode . "◲") (ascii . "!")) . ((disk . link) (git . error))))
     )
   "Unified symbol set for git and disk status with unicode and ascii variants
-  and their respective faces.")
+  and their respective faces."
+  :type '(alist
+          :key-type (symbol :tag "State")
+          :value-type
+          (cons :tag "Display"
+                (alist :tag "Character"
+                       :key-type (symbol :tag "Encoding")
+                       :value-type (string :tag "Symbol"))
+                (alist :tag "Faces"
+                       :key-type (symbol :tag "Target: git or disk)")
+                       :value-type (choice :tag "Face"
+                                           (face :tag "Face name")
+                                           (const :tag "None" nil)))))
+  )
 
 (defcustom minmo-use-ascii nil
   "Whether to use ascii symbols instead of unicode. Defaults to ascii if
