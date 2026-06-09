@@ -192,12 +192,15 @@ Optional FORCE means ignore the minmo--git-directory-table."
 (add-hook 'after-save-hook #'minmo--update-git-cache)
 
 ;; NOTE: but normal cache update when window state changes:
-(defun minmo--update-git-cache-window (frame-or-window)
+(defun minmo--window-hook (frame-or-window func)
   (let ((win (if (framep frame-or-window)
                  (frame-selected-window frame-or-window)
                frame-or-window)))
     (with-current-buffer (window-buffer win)
-      (minmo--update-git-cache))))
+      (funcall func))))
+
+(defun minmo--update-git-cache-window (frame-or-window)
+  (minmo--window-hook frame-or-window 'minmo--update-git-cache))
 
 ;; NOTE: window-state-change-functions includes size changes, which would be spammy.
 ;; this does selection changes, eg other-window:
@@ -261,11 +264,7 @@ Optional FORCE means ignore the minmo--git-directory-table."
             (file-exists-p buffer-file-name)))))
 
 (defun minmo--update-file-exists-cache-window (frame-or-window)
-  (let ((win (if (framep frame-or-window)
-                 (frame-selected-window frame-or-window)
-               frame-or-window)))
-    (with-current-buffer (window-buffer win)
-      (minmo--update-file-exists-cache))))
+  (minmo--window-hook frame-or-window 'minmo--update-file-exists-cache))
 
 (add-hook 'find-file-hook #'minmo--update-file-exists-cache)
 ;; NOTE: before hook, because revert will refuse when it's gone:
