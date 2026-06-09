@@ -413,7 +413,7 @@ Optional FORCE means ignore the minmo--git-directory-table."
     ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; line column
+;;; line column narrow
 
 (defcustom minmo-line-column-format "%l:%c" "format for line number and column."
   :type '(string)
@@ -423,13 +423,13 @@ Optional FORCE means ignore the minmo--git-directory-table."
   :type '(string)
   :group  'minmo)
 
-;; line count can be expensive for large files, when run continuously. cache it.
-(defvar-local minmo--total-lines-cache nil
-  "Cached total line count for the current buffer.")
-
 (defcustom minmo-narrow-face 'warning "face for narrow notifier."
   :type '(symbol)
   :group  'minmo)
+
+;; line count can be expensive for large files, when run continuously. cache it.
+(defvar-local minmo--total-lines-cache nil
+  "Cached total line count for the current buffer.")
 
 (defun minmo--cache-total-lines ()
   "Refresh the total line count cache."
@@ -440,17 +440,22 @@ Optional FORCE means ignore the minmo--git-directory-table."
 (add-hook 'after-save-hook #'minmo--cache-total-lines)
 (add-hook 'after-revert-hook #'minmo--cache-total-lines)
 
+(defun minmo-linecol-total ()
+  (when minmo--total-lines-cache
+    (concat minmo-line-column-format
+            minmo-line-column-suffix
+            (number-to-string minmo--total-lines-cache))))
+
+(defun minmo-narrow-notifier ()
+  (if (buffer-narrowed-p)
+      (propertize "narrow" 'face minmo-narrow-face)
+    nil))
+
 ;; because when narrow is on, line count is meaningless:
 (defun minmo-narrow-or-linecol-total ()
   (when buffer-file-name
-    (if (buffer-narrowed-p)
-        (propertize "%n" 'face minmo-narrow-face)
-      ;; consult preview won't have filled out minmo--total-lines-cache:
-      (when minmo--total-lines-cache
-        (concat minmo-line-column-format
-                minmo-line-column-suffix
-                (number-to-string minmo--total-lines-cache)))
-      )))
+    (or (minmo-narrow-notifier)
+        (minmo-linecol-total))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; minor-modes
