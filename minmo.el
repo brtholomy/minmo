@@ -68,8 +68,6 @@
   :group 'convenience
   :prefix "minmo-")
 
-
-
 (defcustom minmo-status-alist
   '(
     (unmodified . (((unicode . "◻") (ascii . ".")) . ((disk . nil) (git . nil))))
@@ -177,7 +175,9 @@ Optional FORCE means ignore the minmo--git-directory-table."
 
 (defun minmo--file-exists-locally-p ()
   "Utility predicate to prevent expensive reads remotely."
-  (and buffer-file-name (not (file-remote-p (buffer-file-name)))))
+  ;; NOTE: pass 'never to avoid a TRAMP file-exists check. this should mean
+  ;; file-remote-p only does a regexp against the path, looking for ssh: etc.
+  (and buffer-file-name (not (file-remote-p (buffer-file-name) nil 'never))))
 
 (defun minmo--git-status-short (file)
   "Return the 2-character git status for FILE. Returns a string in all cases."
