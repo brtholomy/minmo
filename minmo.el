@@ -68,6 +68,8 @@
   :group 'convenience
   :prefix "minmo-")
 
+
+
 (defcustom minmo-status-alist
   '(
     (unmodified . (((unicode . "◻") (ascii . ".")) . ((disk . nil) (git . nil))))
