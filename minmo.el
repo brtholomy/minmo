@@ -70,11 +70,11 @@
 
 (defcustom minmo-status-alist
   '(
-    (unmodified . (((unicode . "◻") (ascii . ".")) . ((disk . nil) (git . nil))))
-    (modified . (((unicode . "◱") (ascii . "*")) . ((disk . error) (git . warning))))
+    (unmodified .       (((unicode . "◻") (ascii . ".")) . ((disk . nil)     (git . nil))))
+    (modified .         (((unicode . "◱") (ascii . "*")) . ((disk . error)   (git . warning))))
     (ignored/readonly . (((unicode . "◳") (ascii . "_")) . ((disk . success) (git . success))))
-    (staged/orphan . (((unicode . "◰") (ascii . "+")) . ((disk . warning) (git . link))))
-    (untracked/buffer . (((unicode . "◲") (ascii . "!")) . ((disk . link) (git . error))))
+    (staged/orphan .    (((unicode . "◰") (ascii . "+")) . ((disk . warning) (git . link))))
+    (untracked/buffer . (((unicode . "◲") (ascii . "!")) . ((disk . link)    (git . error))))
     )
   "Unified symbol set for git and disk status with unicode and ascii variants
   and their respective faces."
