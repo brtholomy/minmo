@@ -89,3 +89,11 @@ If you wanted an even more minimal mode-line, eval something like this:
         auto-revert-use-notify t
         auto-revert-avoid-polling t)
 ```
+
+# caveats
+
+* The goal here is maximum efficiency while preserving useful git and disk status across emulated and real terminals. I imagine anyone wanting this would also want to customize their mode-line, so this is less about a complete solution than a useful piece of it.
+
+* Nongoals include icons and other eyecandy. If you want more features pick something like [doom-modeline](https://github.com/seagle0128/doom-modeline).
+
+* Font: I've chosen some fairly esoteric unicode points so if they look wrong on your system it's probably your font. Pick a string that looks good on your machine.
