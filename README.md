@@ -48,10 +48,10 @@ After a while, you may find them intuitive. But all of this can be changed easil
 
 In my own theme, `modus-vivendi`, `solaris-dark`, and the kernal tty:
 
-![screenshot](/home/bth/y/dev/minmo/img/redeye.png)
-![screenshot](/home/bth/y/dev/minmo/img/modus-vivendi.png)
-![screenshot](/home/bth/y/dev/minmo/img/solaris-dark.png)
-![screenshot](/home/bth/y/dev/minmo/img/console.png)
+![screenshot](img/redeye.png)
+![screenshot](img/modus-vivendi.png)
+![screenshot](img/solaris-dark.png)
+![screenshot](img/console.png)
 
 ## mode-line-format
 
